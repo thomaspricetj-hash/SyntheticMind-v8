@@ -1,0 +1,6 @@
+C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/bitdrop_lib.dir/RelWithDebInfo/bitdrop_kernel_soa.obj
+C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/bitdrop_lib.dir/RelWithDebInfo/bitdrop_decompress_kernel_soa.obj
+C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/bitdrop_lib.dir/RelWithDebInfo/bitdrop_cache_manager.obj
+C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/bitdrop_lib.dir/RelWithDebInfo/bitdrop_host_api.obj
+C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/bitdrop_lib.dir/RelWithDebInfo/bitdrop_collapse_kernel_soa.obj
+C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/bitdrop_lib.dir/RelWithDebInfo/bitdrop_expand_kernel_soa.obj

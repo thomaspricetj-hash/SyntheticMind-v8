@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="Debug"/>
+		<BuildType Name="Release"/>
+		<BuildType Name="MinSizeRel"/>
+		<BuildType Name="RelWithDebInfo"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="111ca980-9a08-3d41-ba63-f2af12dbc560" DefaultStartup="true">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="tools/bdrop_bench.vcxproj"/>
+		<BuildDependency Project="tools/bdrop_diag.vcxproj"/>
+		<BuildDependency Project="tools/bdropc.vcxproj"/>
+		<BuildDependency Project="tools/bdropd.vcxproj"/>
+		<BuildDependency Project="src/bitdrop_lib.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="37daab5e-02bf-380e-aa72-8f512355b771">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<Build Solution="Debug|*" Project="false"/>
+		<Build Solution="Release|*" Project="false"/>
+		<Build Solution="MinSizeRel|*" Project="false"/>
+		<Build Solution="RelWithDebInfo|*" Project="false"/>
+	</Project>
+	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="ad992fd0-0b44-37c4-a790-c8c03c59ccf5"/>
+	<Project Path="tools/bdrop_bench.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8ce636b3-3a21-3eca-97bf-976f5aaeed06">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="src/bitdrop_lib.vcxproj"/>
+	</Project>
+	<Project Path="tools/bdrop_diag.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="ed8a4df7-ded2-3552-a9b9-a12e26faf21e">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="src/bitdrop_lib.vcxproj"/>
+	</Project>
+	<Project Path="tools/bdropc.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a3923c7e-e617-3a47-a83d-1537618d8392">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="src/bitdrop_lib.vcxproj"/>
+	</Project>
+	<Project Path="tools/bdropd.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="11391bee-5ca0-309c-bcce-23b5bf3b7a67">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="src/bitdrop_lib.vcxproj"/>
+	</Project>
+	<Project Path="src/bitdrop_lib.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7b71e5ad-6ac0-396d-ad3e-214a9b0ac73b">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+</Solution>

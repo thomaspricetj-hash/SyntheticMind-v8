@@ -1,0 +1,9 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/cmake_install.cmake",
+		"C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/src/cmake_install.cmake",
+		"C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/tools/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

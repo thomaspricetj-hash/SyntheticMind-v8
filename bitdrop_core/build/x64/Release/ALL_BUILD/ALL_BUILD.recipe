@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <ProjectOutputs>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\x64\Release\ZERO_CHECK</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\src\Release\bitdrop_lib.dll</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\tools\Release\bdrop_bench.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\tools\Release\bdrop_diag.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\tools\Release\bdropc.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\tools\Release\bdropd.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\thomas price\Desktop\New folder (2)\bitdrop_core\build\x64\Release\ALL_BUILD</FullPath>
+    </ProjectOutput>
+  </ProjectOutputs>
+  <ContentFiles />
+  <SatelliteDlls />
+  <NonRecipeFileRefs />
+</Project>

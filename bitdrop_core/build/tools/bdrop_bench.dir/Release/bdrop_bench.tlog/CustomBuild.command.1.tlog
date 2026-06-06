@@ -1,0 +1,10 @@
+^C:\USERS\THOMAS PRICE\DESKTOP\NEW FOLDER (2)\BITDROP_CORE\TOOLS\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/thomas price/Desktop/New folder (2)/bitdrop_core" "-BC:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build" --check-stamp-file "C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/tools/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

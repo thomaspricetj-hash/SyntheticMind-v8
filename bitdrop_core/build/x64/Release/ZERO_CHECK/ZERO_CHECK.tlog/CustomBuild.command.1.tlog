@@ -1,0 +1,10 @@
+^C:\USERS\THOMAS PRICE\DESKTOP\NEW FOLDER (2)\BITDROP_CORE\BUILD\CMAKEFILES\A4AA09F69170E09EF0EE9137027BF914\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/thomas price/Desktop/New folder (2)/bitdrop_core" "-BC:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/thomas price/Desktop/New folder (2)/bitdrop_core/build/bitdrop.slnx"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
