@@ -1,0 +1,423 @@
+{
+  "results": [
+    {
+      "case_id": "conv_001",
+      "model_id": "syntheticmind_v8",
+      "category": "conversation",
+      "prompt": "Explain the difference between RAM and SSD to a non-technical person.",
+      "response": "Router encountered an internal error.",
+      "latency_ms": 136,
+      "score": 0.5,
+      "extra": {
+        "diagnostics": {
+          "case_id": "conv_001",
+          "model_id": "syntheticmind_v8",
+          "total_ms": 136,
+          "stages": {}
+        },
+        "advice": {
+          "bottleneck_stage": null,
+          "bottleneck_ms": 0.0,
+          "bottleneck_ratio": 0.0,
+          "advice": [
+            "No per-stage data available. Consider wiring DiagnosticsContext into your runtime stages."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "conv_002",
+      "model_id": "syntheticmind_v8",
+      "category": "conversation",
+      "prompt": "You are an AI architect. Outline a high-level design for a modular AI assistant system.",
+      "response": "Router encountered an internal error.",
+      "latency_ms": 11,
+      "score": 0.5,
+      "extra": {
+        "diagnostics": {
+          "case_id": "conv_002",
+          "model_id": "syntheticmind_v8",
+          "total_ms": 11,
+          "stages": {}
+        },
+        "advice": {
+          "bottleneck_stage": null,
+          "bottleneck_ms": 0.0,
+          "bottleneck_ratio": 0.0,
+          "advice": [
+            "No per-stage data available. Consider wiring DiagnosticsContext into your runtime stages."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "code_001",
+      "model_id": "syntheticmind_v8",
+      "category": "code",
+      "prompt": "Write a Python function that merges two sorted lists into one sorted list.",
+      "response": "Router encountered an internal error.",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {
+        "diagnostics": {
+          "case_id": "code_001",
+          "model_id": "syntheticmind_v8",
+          "total_ms": 0,
+          "stages": {}
+        },
+        "advice": {
+          "bottleneck_stage": null,
+          "bottleneck_ms": 0.0,
+          "bottleneck_ratio": 0.0,
+          "advice": [
+            "No per-stage data available. Consider wiring DiagnosticsContext into your runtime stages."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "math_001",
+      "model_id": "syntheticmind_v8",
+      "category": "math",
+      "prompt": "A train travels at 60 km/h for 2.5 hours. How far does it go?",
+      "response": "Router encountered an internal error.",
+      "latency_ms": 11,
+      "score": 0.0,
+      "extra": {
+        "diagnostics": {
+          "case_id": "math_001",
+          "model_id": "syntheticmind_v8",
+          "total_ms": 11,
+          "stages": {}
+        },
+        "advice": {
+          "bottleneck_stage": null,
+          "bottleneck_ms": 0.0,
+          "bottleneck_ratio": 0.0,
+          "advice": [
+            "No per-stage data available. Consider wiring DiagnosticsContext into your runtime stages."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "reason_001",
+      "model_id": "syntheticmind_v8",
+      "category": "reasoning",
+      "prompt": "You have three tasks: A depends on nothing, B depends on A, C depends on B. Describe a valid execution order and why.",
+      "response": "Router encountered an internal error.",
+      "latency_ms": 11,
+      "score": 0.5,
+      "extra": {
+        "diagnostics": {
+          "case_id": "reason_001",
+          "model_id": "syntheticmind_v8",
+          "total_ms": 11,
+          "stages": {}
+        },
+        "advice": {
+          "bottleneck_stage": null,
+          "bottleneck_ms": 0.0,
+          "bottleneck_ratio": 0.0,
+          "advice": [
+            "No per-stage data available. Consider wiring DiagnosticsContext into your runtime stages."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "summary_001",
+      "model_id": "syntheticmind_v8",
+      "category": "summarization",
+      "prompt": "Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integrates routing, memory, web search, agents, and task graphs into a unified cognitive system.",
+      "response": "Router encountered an internal error.",
+      "latency_ms": 673,
+      "score": 0.5,
+      "extra": {
+        "diagnostics": {
+          "case_id": "summary_001",
+          "model_id": "syntheticmind_v8",
+          "total_ms": 673,
+          "stages": {}
+        },
+        "advice": {
+          "bottleneck_stage": null,
+          "bottleneck_ms": 0.0,
+          "bottleneck_ratio": 0.0,
+          "advice": [
+            "No per-stage data available. Consider wiring DiagnosticsContext into your runtime stages."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "conv_001",
+      "model_id": "openai:gpt-4.1",
+      "category": "conversation",
+      "prompt": "Explain the difference between RAM and SSD to a non-technical person.",
+      "response": "[openai:gpt-4.1] STUB RESPONSE for prompt: Explain the difference between RAM and SSD to a non-technical person....",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_002",
+      "model_id": "openai:gpt-4.1",
+      "category": "conversation",
+      "prompt": "You are an AI architect. Outline a high-level design for a modular AI assistant system.",
+      "response": "[openai:gpt-4.1] STUB RESPONSE for prompt: You are an AI architect. Outline a high-level design for a modular AI assistant ...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "code_001",
+      "model_id": "openai:gpt-4.1",
+      "category": "code",
+      "prompt": "Write a Python function that merges two sorted lists into one sorted list.",
+      "response": "[openai:gpt-4.1] STUB RESPONSE for prompt: Write a Python function that merges two sorted lists into one sorted list....",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "math_001",
+      "model_id": "openai:gpt-4.1",
+      "category": "math",
+      "prompt": "A train travels at 60 km/h for 2.5 hours. How far does it go?",
+      "response": "[openai:gpt-4.1] STUB RESPONSE for prompt: A train travels at 60 km/h for 2.5 hours. How far does it go?...",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "reason_001",
+      "model_id": "openai:gpt-4.1",
+      "category": "reasoning",
+      "prompt": "You have three tasks: A depends on nothing, B depends on A, C depends on B. Describe a valid execution order and why.",
+      "response": "[openai:gpt-4.1] STUB RESPONSE for prompt: You have three tasks: A depends on nothing, B depends on A, C depends on B. Desc...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "summary_001",
+      "model_id": "openai:gpt-4.1",
+      "category": "summarization",
+      "prompt": "Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integrates routing, memory, web search, agents, and task graphs into a unified cognitive system.",
+      "response": "[openai:gpt-4.1] STUB RESPONSE for prompt: Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integr...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_001",
+      "model_id": "anthropic:claude-3.7",
+      "category": "conversation",
+      "prompt": "Explain the difference between RAM and SSD to a non-technical person.",
+      "response": "[anthropic:claude-3.7] STUB RESPONSE for prompt: Explain the difference between RAM and SSD to a non-technical person....",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_002",
+      "model_id": "anthropic:claude-3.7",
+      "category": "conversation",
+      "prompt": "You are an AI architect. Outline a high-level design for a modular AI assistant system.",
+      "response": "[anthropic:claude-3.7] STUB RESPONSE for prompt: You are an AI architect. Outline a high-level design for a modular AI assistant ...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "code_001",
+      "model_id": "anthropic:claude-3.7",
+      "category": "code",
+      "prompt": "Write a Python function that merges two sorted lists into one sorted list.",
+      "response": "[anthropic:claude-3.7] STUB RESPONSE for prompt: Write a Python function that merges two sorted lists into one sorted list....",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "math_001",
+      "model_id": "anthropic:claude-3.7",
+      "category": "math",
+      "prompt": "A train travels at 60 km/h for 2.5 hours. How far does it go?",
+      "response": "[anthropic:claude-3.7] STUB RESPONSE for prompt: A train travels at 60 km/h for 2.5 hours. How far does it go?...",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "reason_001",
+      "model_id": "anthropic:claude-3.7",
+      "category": "reasoning",
+      "prompt": "You have three tasks: A depends on nothing, B depends on A, C depends on B. Describe a valid execution order and why.",
+      "response": "[anthropic:claude-3.7] STUB RESPONSE for prompt: You have three tasks: A depends on nothing, B depends on A, C depends on B. Desc...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "summary_001",
+      "model_id": "anthropic:claude-3.7",
+      "category": "summarization",
+      "prompt": "Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integrates routing, memory, web search, agents, and task graphs into a unified cognitive system.",
+      "response": "[anthropic:claude-3.7] STUB RESPONSE for prompt: Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integr...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_001",
+      "model_id": "meta:llama-3.1-8b",
+      "category": "conversation",
+      "prompt": "Explain the difference between RAM and SSD to a non-technical person.",
+      "response": "[meta:llama-3.1-8b] STUB RESPONSE for prompt: Explain the difference between RAM and SSD to a non-technical person....",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_002",
+      "model_id": "meta:llama-3.1-8b",
+      "category": "conversation",
+      "prompt": "You are an AI architect. Outline a high-level design for a modular AI assistant system.",
+      "response": "[meta:llama-3.1-8b] STUB RESPONSE for prompt: You are an AI architect. Outline a high-level design for a modular AI assistant ...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "code_001",
+      "model_id": "meta:llama-3.1-8b",
+      "category": "code",
+      "prompt": "Write a Python function that merges two sorted lists into one sorted list.",
+      "response": "[meta:llama-3.1-8b] STUB RESPONSE for prompt: Write a Python function that merges two sorted lists into one sorted list....",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "math_001",
+      "model_id": "meta:llama-3.1-8b",
+      "category": "math",
+      "prompt": "A train travels at 60 km/h for 2.5 hours. How far does it go?",
+      "response": "[meta:llama-3.1-8b] STUB RESPONSE for prompt: A train travels at 60 km/h for 2.5 hours. How far does it go?...",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "reason_001",
+      "model_id": "meta:llama-3.1-8b",
+      "category": "reasoning",
+      "prompt": "You have three tasks: A depends on nothing, B depends on A, C depends on B. Describe a valid execution order and why.",
+      "response": "[meta:llama-3.1-8b] STUB RESPONSE for prompt: You have three tasks: A depends on nothing, B depends on A, C depends on B. Desc...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "summary_001",
+      "model_id": "meta:llama-3.1-8b",
+      "category": "summarization",
+      "prompt": "Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integrates routing, memory, web search, agents, and task graphs into a unified cognitive system.",
+      "response": "[meta:llama-3.1-8b] STUB RESPONSE for prompt: Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integr...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_001",
+      "model_id": "qwen:2.5-7b",
+      "category": "conversation",
+      "prompt": "Explain the difference between RAM and SSD to a non-technical person.",
+      "response": "[qwen:2.5-7b] STUB RESPONSE for prompt: Explain the difference between RAM and SSD to a non-technical person....",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "conv_002",
+      "model_id": "qwen:2.5-7b",
+      "category": "conversation",
+      "prompt": "You are an AI architect. Outline a high-level design for a modular AI assistant system.",
+      "response": "[qwen:2.5-7b] STUB RESPONSE for prompt: You are an AI architect. Outline a high-level design for a modular AI assistant ...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "code_001",
+      "model_id": "qwen:2.5-7b",
+      "category": "code",
+      "prompt": "Write a Python function that merges two sorted lists into one sorted list.",
+      "response": "[qwen:2.5-7b] STUB RESPONSE for prompt: Write a Python function that merges two sorted lists into one sorted list....",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "math_001",
+      "model_id": "qwen:2.5-7b",
+      "category": "math",
+      "prompt": "A train travels at 60 km/h for 2.5 hours. How far does it go?",
+      "response": "[qwen:2.5-7b] STUB RESPONSE for prompt: A train travels at 60 km/h for 2.5 hours. How far does it go?...",
+      "latency_ms": 0,
+      "score": 0.0,
+      "extra": {}
+    },
+    {
+      "case_id": "reason_001",
+      "model_id": "qwen:2.5-7b",
+      "category": "reasoning",
+      "prompt": "You have three tasks: A depends on nothing, B depends on A, C depends on B. Describe a valid execution order and why.",
+      "response": "[qwen:2.5-7b] STUB RESPONSE for prompt: You have three tasks: A depends on nothing, B depends on A, C depends on B. Desc...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    },
+    {
+      "case_id": "summary_001",
+      "model_id": "qwen:2.5-7b",
+      "category": "summarization",
+      "prompt": "Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integrates routing, memory, web search, agents, and task graphs into a unified cognitive system.",
+      "response": "[qwen:2.5-7b] STUB RESPONSE for prompt: Summarize this in 2 sentences:\nSyntheticMind is a modular AI runtime that integr...",
+      "latency_ms": 0,
+      "score": 0.8,
+      "extra": {}
+    }
+  ],
+  "leaderboard": {
+    "models": [
+      {
+        "model_id": "openai:gpt-4.1",
+        "avg_score": 0.5333333333333333,
+        "avg_latency_ms": 0.0
+      },
+      {
+        "model_id": "anthropic:claude-3.7",
+        "avg_score": 0.5333333333333333,
+        "avg_latency_ms": 0.0
+      },
+      {
+        "model_id": "meta:llama-3.1-8b",
+        "avg_score": 0.5333333333333333,
+        "avg_latency_ms": 0.0
+      },
+      {
+        "model_id": "qwen:2.5-7b",
+        "avg_score": 0.5333333333333333,
+        "avg_latency_ms": 0.0
+      },
+      {
+        "model_id": "syntheticmind_v8",
+        "avg_score": 0.3333333333333333,
+        "avg_latency_ms": 140.33333333333334
+      }
+    ]
+  }
+}

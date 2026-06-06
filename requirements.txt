@@ -1,0 +1,64 @@
+# Core HTTP + networking
+httpx>=0.27.0
+
+# Data structures & validation
+pydantic>=2.6.0
+
+# Numerical computing (math engine, physics engine, matrix ops)
+numpy>=1.26.0
+
+# Optional console/logging enhancements
+rich>=13.7.0
+colorama>=0.4.6
+
+# Developer tools (optional but recommended)
+pytest>=8.0.0
+black>=24.0.0
+
+# Optional ML/analysis utilities used by some subsystems
+scikit-learn>=1.4.0
+
+# Progress bars (used in tool-learning and simulation modules)
+tqdm>=4.66.0
+
+
+# ------------------------------------------------------------
+# SyntheticMind v8 — Required Models (ALL 9 MODELS)
+# ------------------------------------------------------------
+
+# 1. Primary reasoning model
+#    deepseek-r1:32b
+
+# 2. Fast general-purpose model
+#    qwen2.5:7b-instruct
+
+# 3. Secondary general model
+#    llama3.1:8b-instruct
+
+# 4. Coding model
+#    qwen2.5-coder:7b
+
+# 5. Math model
+#    qwen2.5-math:7b
+
+# 6. Secondary math model
+#    deepseek-math:7b
+
+# 7. Vision-language model
+#    qwen2-vl:7b
+
+# 8. Secondary vision model
+#    llava:7b
+
+# 9. Embedding model (memory + vector store)
+#    bge-large-en-v1.5
+
+
+# ------------------------------------------------------------
+# Install models using:
+#   ollama pull <model-name>
+# Example:
+#   ollama pull deepseek-r1:32b
+#   ollama pull qwen2.5:7b-instruct
+# ------------------------------------------------------------
+
