@@ -529,6 +529,9 @@ Location: Crestwood, KY
 Project: SyntheticMind v8 — Cognitive AI System
 
 
+<p align="center">
+  <img src="logo_syntheticmind_v8.svg" width="300">
+</p>
 
 
 
