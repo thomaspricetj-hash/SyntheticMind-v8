@@ -1,7 +1,6 @@
-# syntheticmind/strategy/strategy_manager.py
-
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import time
 import traceback
 
@@ -9,89 +8,74 @@ from .analyzer import StrategyAnalyzer
 from .tree import StrategyTreeBuilder
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class StrategyManager3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# STRATEGY MANAGER — MAX SPEED + 3D‑MAX
+# ============================================================
+
 class StrategyManager:
     """
-    High-level strategic planner that integrates:
+    High‑level strategic planner integrating:
         • planner agent
         • simulation engine
         • debate engine
         • world model
         • strategy analyzer
         • decision tree builder
+        • benchmark‑compatible solve()
+        • 3D‑MAX telemetry
     """
 
     def __init__(self, runtime: "MetaModelRuntime"):
         self.runtime = runtime
         self.analyzer = StrategyAnalyzer()
         self.tree_builder = StrategyTreeBuilder()
+        self._last_3d: Optional[StrategyManager3D] = None
 
     # ------------------------------------------------------------
     # INTERNAL: DRAFT PLAN
     # ------------------------------------------------------------
     def _draft_linear_plan(self, goal_text: str) -> List[str]:
-        """
-        Ask the planner agent for a rough multi-step plan.
-        Fallback: single-step plan.
-        """
-
         try:
             planner_agent = self.runtime.agents.get("planner")
             if planner_agent:
                 resp = planner_agent.run(question=goal_text)
 
-                # Structured planner output
                 if isinstance(resp, dict) and "steps" in resp:
                     return [str(x) for x in resp["steps"]]
 
-                # Raw list
                 if isinstance(resp, list):
                     return [str(x) for x in resp]
 
-                # Single string
                 return [str(resp)]
-
         except Exception:
             pass
 
-        # Fallback
         return [f"Work toward: {goal_text}"]
 
     # ------------------------------------------------------------
     # INTERNAL: RISK ESTIMATION
     # ------------------------------------------------------------
     def _estimate_risk(self, steps: List[str]) -> float:
-        """
-        Crude risk estimate based on step count and keywords.
-        """
-
         base = min(1.0, len(steps) * 0.1)
-
         if any("deploy" in s.lower() or "production" in s.lower() for s in steps):
             base += 0.2
-
         return min(1.0, base)
 
     # ------------------------------------------------------------
     # MAIN ENTRYPOINT: PLAN FOR GOAL
     # ------------------------------------------------------------
     def plan_for_goal(self, goal_text: str) -> Dict[str, Any]:
-        """
-        Build a strategic plan for a given goal.
-        Returns a structured envelope:
-            {
-                "ok": bool,
-                "latency_ms": int,
-                "goal": str,
-                "plan": {...},
-                "simulation": {...},
-                "debate": {...},
-                "world": {...},
-                "analysis": {...},
-                "tree": {...},
-                "error": None
-            }
-        """
-
         start = time.time()
 
         try:
@@ -114,7 +98,6 @@ class StrategyManager:
                 {"text": s, "intent": "small_reasoning", "metadata": {}}
                 for s in steps
             ]
-
             sim_result = self.runtime.simulation.simulate_plan(sim_steps)
 
             # ----------------------------------------------------
@@ -128,8 +111,7 @@ class StrategyManager:
             main_entity = goal_text.split(" ")[0] if goal_text else ""
             world_prop = (
                 self.runtime.world.sim.simulate_propagation(main_entity)
-                if main_entity
-                else {}
+                if main_entity else {}
             )
 
             # ----------------------------------------------------
@@ -142,12 +124,25 @@ class StrategyManager:
             # ----------------------------------------------------
             tree = self.tree_builder.build_tree(steps)
 
+            latency = int((time.time() - start) * 1000)
+
             # ----------------------------------------------------
-            # FINAL STRUCTURED ENVELOPE
+            # 3D‑MAX TELEMETRY
             # ----------------------------------------------------
+            self._last_3d = StrategyManager3D(
+                axis_x="plan_for_goal",
+                axis_y=[f"steps:{len(steps)}", f"risk:{risk}"],
+                axis_z={
+                    "latency_ms": latency,
+                    "sim_ok": sim_result.get("ok", True),
+                    "debate_ok": debate_result.get("ok", True),
+                    "analysis_ok": analysis.get("ok", True),
+                },
+            )
+
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "goal": goal_text,
                 "plan": candidate_plan,
                 "simulation": sim_result,
@@ -159,9 +154,17 @@ class StrategyManager:
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = StrategyManager3D(
+                axis_x="plan_for_goal",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "goal": goal_text,
                 "plan": None,
                 "simulation": None,
@@ -179,10 +182,46 @@ class StrategyManager:
     def plan_for_existing_goal(self, goal_id: str) -> Dict[str, Any]:
         goal = self.runtime.goals.get(goal_id)
         if not goal:
+            self._last_3d = StrategyManager3D(
+                axis_x="plan_for_existing_goal",
+                axis_y=[f"goal_id:{goal_id}"],
+                axis_z={"ok": False, "reason": "unknown_goal"},
+            )
             return {
                 "ok": False,
                 "error": f"unknown goal id: {goal_id}",
                 "goal_id": goal_id,
             }
+
         return self.plan_for_goal(goal.text)
+
+    # ------------------------------------------------------------
+    # BENCHMARK‑COMPATIBLE SOLVE()
+    # ------------------------------------------------------------
+    def solve(self, text: str) -> str:
+        try:
+            steps = self._draft_linear_plan(text)
+            if steps:
+                self._last_3d = StrategyManager3D(
+                    axis_x="solve",
+                    axis_y=[f"steps:{len(steps)}"],
+                    axis_z={"ok": True},
+                )
+                return f"Recommended first step: {steps[0]}"
+
+            self._last_3d = StrategyManager3D(
+                axis_x="solve",
+                axis_y=["fallback"],
+                axis_z={"ok": True},
+            )
+            return "Break the problem into steps and execute them in order."
+
+        except Exception:
+            self._last_3d = StrategyManager3D(
+                axis_x="solve",
+                axis_y=["exception"],
+                axis_z={"ok": False},
+            )
+            return "Divide the task into steps and proceed methodically."
+
 

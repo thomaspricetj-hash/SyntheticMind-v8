@@ -9,6 +9,7 @@ import zlib
 # ------------------------------------------------------------
 class MicroStringStripper:
     __slots__ = ()
+
     @staticmethod
     def clean(text: str) -> str:
         return " ".join(text.split())
@@ -16,6 +17,7 @@ class MicroStringStripper:
 
 class MicroTokenLimiter:
     __slots__ = ()
+
     @staticmethod
     def limit(text: str, max_chars: int = 6000) -> str:
         if len(text) <= max_chars:
@@ -25,6 +27,7 @@ class MicroTokenLimiter:
 
 class MicroFastHash:
     __slots__ = ()
+
     @staticmethod
     def h(text: str) -> int:
         return zlib.crc32(text.encode("utf-8"))
@@ -38,6 +41,7 @@ class MicroRegex:
 
 class MicroLogicClassifier:
     __slots__ = ()
+
     @staticmethod
     def classify(text: str) -> str:
         t = text.lower()
@@ -62,9 +66,10 @@ class MicroLogicClassifier:
 
 class MicroOperatorScanner:
     __slots__ = ()
+
     @staticmethod
     def scan(text: str, logic_ops: List[str]) -> List[str]:
-        ops = []
+        ops: List[str] = []
         t = text.lower()
 
         # Word operators
@@ -81,29 +86,44 @@ class MicroOperatorScanner:
 
 
 # ------------------------------------------------------------
-# MAIN HELPER
+# MAIN HELPER (STRUCTURED LOGIC REASONING, MAX 3D)
 # ------------------------------------------------------------
 class LogicHelper:
     """
-    Ultra-fast LogicHelper with integrated micro-helpers.
+    Upgraded LogicHelper (MAX 3D Version)
+
+    Produces strict, 4-section, logic-oriented reasoning suitable for
+    multi-pass, 3D tensor-based thinking.
+
+    Output format (from process):
+        {
+            "text": "<full structured answer>",
+            "sections": ["Definitions", "Derivation", "Conditions", "Final Answer"],
+            "domain": "logic",
+            "valid": True/False,
+            "raw_query": "<normalized query>",
+            "operators": [...],
+            "logic_domain": "<formal_proof|contradiction|...>"
+        }
     """
 
     DEDUCTIVE_KEYWORDS = [
         "therefore", "implies", "if and only if", "iff",
-        "hence", "thus", "conclude", "deduce"
+        "hence", "thus", "conclude", "deduce",
     ]
 
     PROOF_KEYWORDS = [
         "prove", "show that", "demonstrate", "assume", "contradiction",
-        "lemma", "theorem", "corollary", "axiom"
+        "lemma", "theorem", "corollary", "axiom",
     ]
 
     LOGIC_OPERATORS = [
         "→", "⇒", "⇔", "¬", "∧", "∨",
-        "implies", "and", "or", "not"
+        "implies", "and", "or", "not",
     ]
 
     def __init__(self) -> None:
+        # Per-helper cache keyed by fast hash of normalized query
         self.cache: Dict[int, Dict[str, Any]] = {}
 
     # ------------------------------------------------------------
@@ -136,69 +156,7 @@ class LogicHelper:
         return MicroOperatorScanner.scan(query, self.LOGIC_OPERATORS)
 
     # ------------------------------------------------------------
-    # PUBLIC: main entrypoint
-    # ------------------------------------------------------------
-    def process(self, query: str, lang_info: Dict[str, Any], memory_info: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            query = (query or "").strip()
-            if not query:
-                return {"detected": False}
-
-            # Micro: normalize
-            query = MicroStringStripper.clean(query)
-
-            # Micro: limit size
-            query = MicroTokenLimiter.limit(query)
-
-            # Micro: fast dedupe
-            h = MicroFastHash.h(query)
-            if h in self.cache:
-                return self.cache[h]
-
-            detected = self._detect_logic(query)
-            if not detected:
-                return {"detected": False}
-
-            domain = self._classify_domain(query)
-            operators = self._extract_operators(query)
-
-            notes: List[str] = []
-
-            if domain == "formal_proof":
-                notes.append("Formal proof: identify assumptions, lemmas, and logical steps.")
-            elif domain == "contradiction":
-                notes.append("Contradiction: assume the negation and derive inconsistency.")
-            elif domain == "equivalence":
-                notes.append("Equivalence: prove both directions independently.")
-            elif domain == "deduction":
-                notes.append("Deduction: apply logical implications and inference rules.")
-            elif domain == "assumption_based":
-                notes.append("Assumption-based: track assumptions and derived consequences.")
-            else:
-                notes.append("Logic detected but domain unclear — fallback to general reasoning.")
-
-            envelope = {
-                "detected": True,
-                "domain": domain,
-                "operators": operators,
-                "raw_query": query,
-                "notes": notes,
-            }
-
-            # Cache
-            self.cache[h] = envelope
-            return envelope
-
-        except Exception as e:
-            return {
-                "detected": True,
-                "domain": "error",
-                "operators": [],
-                "raw_query": query,
-                "notes": [],
-                "error": str(e),
-            }
-
+    # PUBLIC: main entrypoint (1D)
     # ------------------------------------------------------------
     def process(
         self,
@@ -209,62 +167,253 @@ class LogicHelper:
         """
         Returns a structured logic reasoning envelope:
             {
-                "detected": bool,
-                "domain": "...",
-                "operators": [...],
+                "text": "<4-section structured reasoning>",
+                "sections": [...],
+                "domain": "logic",
+                "valid": bool,
                 "raw_query": "...",
-                "notes": [...],
+                "operators": [...],
+                "logic_domain": "..."
             }
+
+        Always returns the same structural shape; `valid` indicates
+        whether the query was actually logical.
         """
         try:
-            detected = self._detect_logic(query)
-            if not detected:
-                return {"detected": False}
+            query = (query or "").strip()
+            if not query:
+                return {
+                    "text": "",
+                    "sections": [],
+                    "domain": "logic",
+                    "valid": False,
+                    "raw_query": "",
+                    "operators": [],
+                    "logic_domain": "unknown",
+                }
 
-            domain = self._classify_domain(query)
-            operators = self._extract_operators(query)
+            # Normalize + limit
+            norm = MicroStringStripper.clean(query)
+            norm = MicroTokenLimiter.limit(norm)
 
-            notes: List[str] = []
+            # Cache lookup
+            h = MicroFastHash.h(norm)
+            cached = self.cache.get(h)
+            if cached is not None:
+                return cached
 
-            if domain == "formal_proof":
-                notes.append("Logic: treat as a formal proof; identify assumptions and target statement.")
-                notes.append("Logic: consider direct proof, contradiction, or contrapositive.")
+            detected = self._detect_logic(norm)
+            logic_domain = self._classify_domain(norm)
+            operators = self._extract_operators(norm)
 
-            elif domain == "contradiction":
-                notes.append("Logic: check for mutually exclusive statements or negations.")
-                notes.append("Logic: consider reductio ad absurdum structure.")
+            definitions = self._build_definitions(norm, operators, logic_domain)
+            derivation = self._build_derivation(norm, operators, logic_domain)
+            conditions = self._build_conditions(norm, operators, logic_domain)
+            final_answer = self._build_final_answer(norm, operators, logic_domain)
 
-            elif domain == "equivalence":
-                notes.append("Logic: show both directions (A ⇒ B and B ⇒ A).")
-                notes.append("Logic: identify shared invariants or transformations.")
+            text = (
+                "[1] Definitions\n" + definitions + "\n\n"
+                "[2] Derivation\n" + derivation + "\n\n"
+                "[3] Conditions\n" + conditions + "\n\n"
+                "[4] Final Answer\n" + final_answer
+            )
 
-            elif domain == "deduction":
-                notes.append("Logic: identify premises and derive conclusions step-by-step.")
-                notes.append("Logic: check for hidden assumptions.")
-
-            elif domain == "assumption_based":
-                notes.append("Logic: treat assumptions as temporary scaffolding.")
-                notes.append("Logic: check if assumptions lead to contradictions or conclusions.")
-
-            else:
-                notes.append("Logic detected but domain unclear — fallback to general reasoning.")
-
-            return {
-                "detected": True,
-                "domain": domain,
+            env: Dict[str, Any] = {
+                "text": text,
+                "sections": [
+                    "Definitions",
+                    "Derivation",
+                    "Conditions",
+                    "Final Answer",
+                ],
+                "domain": "logic",
+                "valid": bool(detected),
+                "raw_query": norm,
                 "operators": operators,
-                "raw_query": query,
-                "notes": notes,
+                "logic_domain": logic_domain,
             }
+
+            self.cache[h] = env
+            return env
 
         except Exception as e:
-            # Fail-soft
-            return {
-                "detected": True,
-                "domain": "error",
+            norm = MicroStringStripper.clean(query or "")
+            norm = MicroTokenLimiter.limit(norm)
+            h = MicroFastHash.h(norm)
+            env = {
+                "text": f"[LogicHelperError] {e}",
+                "sections": [],
+                "domain": "logic",
+                "valid": False,
+                "raw_query": norm,
                 "operators": [],
-                "raw_query": query,
-                "notes": [],
+                "logic_domain": "error",
                 "error": str(e),
             }
+            self.cache[h] = env
+            return env
 
+    # ------------------------------------------------------------
+    # INTERNAL STRUCTURED BUILDERS
+    # ------------------------------------------------------------
+    def _build_definitions(
+        self,
+        query: str,
+        operators: List[str],
+        logic_domain: str,
+    ) -> str:
+        lines: List[str] = []
+
+        if operators:
+            lines.append("• Logical operators detected: " + ", ".join(operators) + ".")
+
+        lines.append("• Identify all propositions or statements involved (label them as P, Q, R, etc.).")
+        lines.append("• Clarify the meaning of each proposition in plain language.")
+        lines.append("• Distinguish between assumptions/premises and the target conclusion.")
+
+        if logic_domain == "formal_proof":
+            lines.append("• Treat the setting as a formal proof with explicit premises and a goal statement.")
+        elif logic_domain == "contradiction":
+            lines.append("• Identify the statements that are suspected to be mutually inconsistent.")
+        elif logic_domain == "equivalence":
+            lines.append("• Identify the two statements claimed to be equivalent (A and B).")
+        elif logic_domain == "deduction":
+            lines.append("• Identify the premises and the intended conclusion of the deduction.")
+        elif logic_domain == "assumption_based":
+            lines.append("• Identify which statements are assumed temporarily and which are global premises.")
+        else:
+            lines.append("• Clarify the general logical context if not obvious (proof, equivalence, contradiction, etc.).")
+
+        return "\n".join(lines)
+
+    def _build_derivation(
+        self,
+        query: str,
+        operators: List[str],
+        logic_domain: str,
+    ) -> str:
+        lines: List[str] = []
+
+        if logic_domain == "formal_proof":
+            lines.append("• Start from the given premises and apply valid inference rules step by step.")
+            lines.append("• Use standard rules (modus ponens, modus tollens, conjunction, disjunction, etc.) explicitly.")
+            lines.append("• Avoid skipping steps; show how each line follows from previous ones.")
+        elif logic_domain == "contradiction":
+            lines.append("• Assume the negation of the desired conclusion (or a key statement).")
+            lines.append("• Derive consequences until a clear contradiction is obtained (P and ¬P).")
+            lines.append("• Conclude that the assumption must be false, so the original statement holds.")
+        elif logic_domain == "equivalence":
+            lines.append("• Prove A ⇒ B by assuming A and deriving B.")
+            lines.append("• Prove B ⇒ A by assuming B and deriving A.")
+            lines.append("• Conclude A ⇔ B once both directions are established.")
+        elif logic_domain == "deduction":
+            lines.append("• List the premises explicitly and derive the conclusion using valid inference rules.")
+            lines.append("• Check that no step introduces information not justified by the premises.")
+        elif logic_domain == "assumption_based":
+            lines.append("• Mark which steps depend on temporary assumptions.")
+            lines.append("• Show how discharging assumptions leads to the final conclusion.")
+        else:
+            lines.append("• Rewrite the argument in a clear premise–conclusion structure.")
+            lines.append("• Apply standard inference rules to move from premises to conclusion.")
+
+        lines.append("• At each step, ensure that no fallacies (e.g., affirming the consequent, denying the antecedent) are used.")
+
+        return "\n".join(lines)
+
+    def _build_conditions(
+        self,
+        query: str,
+        operators: List[str],
+        logic_domain: str,
+    ) -> str:
+        lines: List[str] = []
+
+        lines.append("• State all assumptions explicitly, including any hidden or implicit premises.")
+        lines.append("• Clarify whether the reasoning is classical, intuitionistic, or another logical system if relevant.")
+        lines.append("• Identify any use of excluded middle, double negation, or other system-specific principles.")
+        lines.append("• Check whether the argument depends on domain-specific facts (e.g., about numbers, sets) beyond pure logic.")
+        lines.append("• Note any conditions under which the argument would fail (e.g., if a premise is false).")
+
+        return "\n".join(lines)
+
+    def _build_final_answer(
+        self,
+        query: str,
+        operators: List[str],
+        logic_domain: str,
+    ) -> str:
+        lines: List[str] = []
+
+        lines.append("• State clearly whether the conclusion logically follows from the premises.")
+        lines.append("• If the argument is invalid, specify exactly where the reasoning breaks.")
+        lines.append("• If a contradiction was derived, state the contradictory pair explicitly (P and ¬P).")
+        lines.append("• If an equivalence was proven, restate it as A ⇔ B with a brief justification.")
+        lines.append("• Summarize the overall logical structure in one or two precise sentences (e.g., proof by contradiction, direct proof).")
+
+        return "\n".join(lines)
+
+
+# ------------------------------------------------------------
+# 3D LOGIC HELPER (MAXED, BACKWARD-COMPATIBLE)
+# ------------------------------------------------------------
+class LogicHelper3D:
+    """
+    3D LogicHelper:
+        • Reuses LogicHelper core logic
+        • Adds 3D grids of queries: [D][H][W]
+        • Per-cell logic reasoning envelope
+        • Cache amplification across 3D space
+    """
+
+    def __init__(self) -> None:
+        self.helper = LogicHelper()
+
+    def process_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[Dict[str, Any]]]]:
+        """
+        queries_3d[d][h][w] = query string
+        returns envelopes_3d[d][h][w] = LogicHelper envelope
+        """
+        depth = len(queries_3d)
+        out: List[List[List[Dict[str, Any]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Dict[str, Any]]] = []
+            for row in plane:
+                row_out: List[Dict[str, Any]] = []
+                for q in row:
+                    row_out.append(self.helper.process(q, lang_info, memory_info))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    def domain_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[str]]]:
+        """
+        Convenience: return only logic_domain per cell.
+        """
+        envelopes_3d = self.process_3d(queries_3d, lang_info, memory_info)
+        depth = len(envelopes_3d)
+        out: List[List[List[str]]] = []
+
+        for d in range(depth):
+            plane = envelopes_3d[d]
+            plane_out: List[List[str]] = []
+            for row in plane:
+                row_out: List[str] = []
+                for env in row:
+                    row_out.append(env.get("logic_domain", "unknown"))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out

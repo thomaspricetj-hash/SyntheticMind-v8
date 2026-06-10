@@ -1,6 +1,18 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Any, Dict, List
 import zlib
+
+
+# ------------------------------------------------------------
+# 3D MEMORY STRUCTURE
+# ------------------------------------------------------------
+@dataclass
+class Memory3D:
+    raw_query: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
 
 
 # ------------------------------------------------------------
@@ -61,18 +73,17 @@ class MicroContradictionScanner:
         contradictions = []
         for r in recalled:
             rl = r.lower()
-            # Fast contradiction heuristic
             if "not" in rl and (" is " in rl or " are " in rl):
                 contradictions.append(f"possible contradiction: {r}")
         return contradictions
 
 
 # ------------------------------------------------------------
-# MAIN HELPER
+# MAIN HELPER (3D-AWARE)
 # ------------------------------------------------------------
 class MemoryHelper:
     """
-    Ultra-fast MemoryHelper with integrated micro-helpers.
+    Ultra-fast MemoryHelper with integrated micro-helpers and 3D structural view.
     """
 
     def __init__(self, memory) -> None:
@@ -91,19 +102,38 @@ class MemoryHelper:
         return []
 
     # ------------------------------------------------------------
+    # INTERNAL: build 3D memory envelope
+    # ------------------------------------------------------------
+    def _build_3d(self, query: str, literal: List[str], semantic: List[str], signals: Dict[str, Any]) -> Memory3D:
+        lines = query.splitlines()
+        axis_z = {
+            "literal": literal,
+            "semantic": semantic,
+            "signals": signals,
+        }
+        return Memory3D(
+            raw_query=query,
+            axis_x=query,
+            axis_y=lines,
+            axis_z=axis_z,
+        )
+
+    # ------------------------------------------------------------
     # PUBLIC: main entrypoint
     # ------------------------------------------------------------
     def recall(self, query: str) -> Dict[str, Any]:
         try:
             query = (query or "").strip()
             if not query:
+                empty_signals = {
+                    "repeated_intents": [],
+                    "contradictions": [],
+                }
                 return {
                     "literal": [],
                     "semantic": [],
-                    "signals": {
-                        "repeated_intents": [],
-                        "contradictions": [],
-                    },
+                    "signals": empty_signals,
+                    "structure_3d": self._build_3d("", [], [], empty_signals),
                 }
 
             # Micro: normalize
@@ -135,13 +165,18 @@ class MemoryHelper:
             # Micro: contradiction detection
             contradictions = MicroContradictionScanner.scan(combined)
 
+            signals = {
+                "repeated_intents": repeated,
+                "contradictions": contradictions,
+            }
+
+            structure_3d = self._build_3d(query, literal, semantic, signals)
+
             envelope = {
                 "literal": literal,
                 "semantic": semantic,
-                "signals": {
-                    "repeated_intents": repeated,
-                    "contradictions": contradictions,
-                },
+                "signals": signals,
+                "structure_3d": structure_3d,
             }
 
             # Cache
@@ -149,13 +184,15 @@ class MemoryHelper:
             return envelope
 
         except Exception as e:
+            empty_signals = {
+                "repeated_intents": [],
+                "contradictions": [],
+            }
             return {
                 "literal": [],
                 "semantic": [],
-                "signals": {
-                    "repeated_intents": [],
-                    "contradictions": [],
-                },
+                "signals": empty_signals,
+                "structure_3d": self._build_3d(query or "", [], [], empty_signals),
                 "error": str(e),
             }
 

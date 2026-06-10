@@ -1,6 +1,5 @@
-# syntheticmind/metamodel/critic.py
-
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Dict, Any
 import time
 import traceback
@@ -8,108 +7,145 @@ import traceback
 from ..metamodel.ollama_client import OllamaClient
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Critic3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# CRITIC — MAX SPEED + 3D‑MAX
+# ============================================================
+
 class Critic:
     """
-    Evaluates the model's output and identifies issues.
+    Optimized critique engine (3D‑MAX Edition).
     Provides:
         • structured critique envelopes
         • latency measurement
         • safe error handling
-        • future-proof critique prompt
-        • consistent with ReasonSmall/ReasonLarge
+        • fallback model support
+        • consistent schema
+        • no slow‑pattern triggers
+        • 3D‑MAX introspection for every critique cycle
     """
 
     def __init__(self, model: str = "qwen2.5:1.5b"):
         self.model = model
         self.llm = OllamaClient()
+        self.fallback_model = "qwen2.5:0.5b"
+        self._last_3d: Critic3D | None = None
 
     # ------------------------------------------------------------
     # MAIN CRITIQUE FUNCTION
     # ------------------------------------------------------------
     def critique(self, prompt: str, output: str) -> Dict[str, Any]:
-        """
-        Returns a structured critique envelope:
-            {
-                "ok": bool,
-                "model": str,
-                "latency_ms": int,
-                "critique": str,
-                "error": str | None
-            }
-        """
-
         start = time.time()
 
         try:
             critique_prompt = self._build_prompt(prompt, output)
 
-            # Call Ollama
+            # Primary model call
             result = self.llm.generate(self.model, critique_prompt)
 
-            # result is a structured envelope from the upgraded OllamaClient:
-            # {
-            #   "ok": bool,
-            #   "model": str,
-            #   "response": str,
-            #   "error": str | None
-            # }
-
             if not result.get("ok"):
+                # Fallback model
+                fallback = self.llm.generate(self.fallback_model, critique_prompt)
+
+                if not fallback.get("ok"):
+                    latency = int((time.time() - start) * 1000)
+                    self._last_3d = Critic3D(
+                        axis_x="critique",
+                        axis_y=[f"primary_fail", f"fallback_fail"],
+                        axis_z={"latency_ms": latency, "error": fallback.get("error")},
+                    )
+                    return {
+                        "ok": False,
+                        "model": self.model,
+                        "latency_ms": latency,
+                        "critique": "",
+                        "error": fallback.get("error") or result.get("error"),
+                    }
+
+                latency = int((time.time() - start) * 1000)
+                self._last_3d = Critic3D(
+                    axis_x="critique",
+                    axis_y=[f"primary_fail", f"fallback_success"],
+                    axis_z={"latency_ms": latency, "model_used": self.fallback_model},
+                )
                 return {
-                    "ok": False,
-                    "model": self.model,
-                    "latency_ms": int((time.time() - start) * 1000),
-                    "critique": "",
-                    "error": result.get("error"),
+                    "ok": True,
+                    "model": self.fallback_model,
+                    "latency_ms": latency,
+                    "critique": fallback.get("response", ""),
+                    "error": None,
                 }
 
+            # Successful primary model
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = Critic3D(
+                axis_x="critique",
+                axis_y=[f"primary_success"],
+                axis_z={"latency_ms": latency, "model_used": self.model},
+            )
             return {
                 "ok": True,
                 "model": self.model,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "critique": result.get("response", ""),
                 "error": None,
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = Critic3D(
+                axis_x="critique",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
             return {
                 "ok": False,
                 "model": self.model,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "critique": "",
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
 
     # ------------------------------------------------------------
-    # PROMPT BUILDER
+    # PROMPT BUILDER (optimized)
     # ------------------------------------------------------------
     def _build_prompt(self, prompt: str, output: str) -> str:
         """
         Builds a robust critique prompt.
+        Ensures:
+            • no slow‑pattern triggers
+            • no unnecessary whitespace
+            • consistent structure
         """
 
-        return f"""
-You are a critique engine. Analyze the following model output for:
+        return (
+            "You are a critique engine. Analyze the following model output for:\n\n"
+            "- correctness\n"
+            "- clarity\n"
+            "- completeness\n"
+            "- reasoning quality\n"
+            "- missing details\n"
+            "- contradictions\n"
+            "- hallucination risk\n"
+            "- structural issues\n"
+            "- opportunities for improvement\n\n"
+            "Provide a concise, actionable critique.\n\n"
+            "=== PROMPT ===\n"
+            f"{prompt}\n\n"
+            "=== MODEL OUTPUT ===\n"
+            f"{output}\n\n"
+            "=== CRITIQUE ==="
+        )
 
-- correctness
-- clarity
-- completeness
-- reasoning quality
-- missing details
-- contradictions
-- hallucination risk
-- structural issues
-- opportunities for improvement
-
-Provide a concise, actionable critique.
-
-=== PROMPT ===
-{prompt}
-
-=== MODEL OUTPUT ===
-{output}
-
-=== CRITIQUE ===
-""".strip()
 

@@ -1,0 +1,8 @@
+C:\Users\thomas price\Desktop\SyntheticMind-v8\bitdrop_core\ai\python_wrapper\target\debug\deps\windows_link-d2ef63ecef51002c.d: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\bitdrop_core\ai\python_wrapper\target\debug\deps\libwindows_link-d2ef63ecef51002c.rlib: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\bitdrop_core\ai\python_wrapper\target\debug\deps\libwindows_link-d2ef63ecef51002c.rmeta: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md
+
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md:

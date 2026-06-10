@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Any
 import math
 import re
 
@@ -11,6 +12,61 @@ from .detectors import looks_like_math
 from .semantic_math import embed_math_text
 
 
+# -------------------------------------------------------------------------
+# 3D STRUCTURE
+# -------------------------------------------------------------------------
+@dataclass
+class MathEngine3D:
+    """
+    3D structural view of a MathEngine operation.
+
+    axis_x: raw input text
+    axis_y: token/line decomposition
+    axis_z: operation metadata (op, flags, results, errors)
+    """
+    raw_text: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# -------------------------------------------------------------------------
+# Lightweight in-file memory + cosine similarity (self-contained)
+# -------------------------------------------------------------------------
+class MemoryItem:
+    def __init__(self, content: str, tags: Optional[dict] = None, embedding=None):
+        self.content = content
+        self.tags = tags or {}
+        self.embedding = embedding
+
+
+class MemoryLog:
+    def __init__(self):
+        self.items: List[MemoryItem] = []
+
+    def write(
+        self,
+        content: str,
+        tags: Optional[dict] = None,
+        agent: Optional[str] = None,
+        embedding=None,
+    ):
+        item = MemoryItem(content, tags or {}, embedding)
+        self.items.append(item)
+
+
+def cosine(u, v) -> float:
+    if not u or not v or len(u) != len(v):
+        return 0.0
+    num = sum(a * b for a, b in zip(u, v))
+    den1 = math.sqrt(sum(a * a for a in u))
+    den2 = math.sqrt(sum(b * b for b in v))
+    if den1 == 0 or den2 == 0:
+        return 0.0
+    return num / (den1 * den2)
+
+
+memory = MemoryLog()
 
 
 # -------------------------------------------------------------------------
@@ -21,23 +77,58 @@ def extract_equation(text: str) -> str:
     return text
 
 
+# -------------------------------------------------------------------------
+# MATH ENGINE (3D-AWARE)
+# -------------------------------------------------------------------------
 class MathEngine:
     """
-    High-level math engine
+    High-level math engine (fully deterministic, no external EchoEngine/UniversalAI),
+    upgraded to 3D structural output.
     """
 
     def __init__(self, base_engine=None, user_id: str = "math"):
-        if base_engine is None:
-            base_engine = EchoEngine()
+        self.user_id = user_id
 
-        init_memory(base_engine, user_id=user_id)
-        self.ua = UniversalAI(base_engine)
-        self.skimmer = self.ua.skimmer
+        class _Skimmer:
+            def skim(self, text: str) -> str:
+                return text[:400]
+
+        self.skimmer = _Skimmer()
+        self._last_3d: Optional[MathEngine3D] = None
+
+    # -------------------------------------------------------------------------
+    # 3D builder
+    # -------------------------------------------------------------------------
+    def _build_3d(
+        self,
+        text: str,
+        *,
+        op: str,
+        tokens: Optional[List[str]] = None,
+        result: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> MathEngine3D:
+        lines = (text or "").splitlines()
+        if tokens is None:
+            tokens = re.findall(r"\S+", text or "")
+        axis_z: Dict[str, Any] = {
+            "op": op,
+            "result": result,
+            "tokens": tokens,
+            "char_count": len(text or ""),
+        }
+        if extra:
+            axis_z.update(extra)
+        return MathEngine3D(
+            raw_text=text or "",
+            axis_x=text or "",
+            axis_y=lines,
+            axis_z=axis_z,
+        )
 
     # -------------------------------------------------------------------------
     # TOKENIZER
     # -------------------------------------------------------------------------
-
     def _tokenize(self, text: str) -> List[str]:
         pattern = r"[A-Za-z]+|\d+\.\d+|\d+|[\+\-\*\^\(\)]"
         tokens = re.findall(pattern, text)
@@ -71,7 +162,6 @@ class MathEngine:
     # -------------------------------------------------------------------------
     # PARSER
     # -------------------------------------------------------------------------
-
     def parse_expr(self, text: str) -> Expr:
         tokens = self._tokenize(text)
         expr, pos = self._parse_add(tokens, 0)
@@ -116,31 +206,58 @@ class MathEngine:
         return Symbol(tok), pos + 1
 
     # -------------------------------------------------------------------------
+    # EQUATION HANDLING
+    # -------------------------------------------------------------------------
+    def _split_equation(self, text: str) -> Optional[Eq]:
+        if "=" not in text:
+            return None
+        left_str, right_str = text.split("=", 1)
+        left_str = left_str.strip()
+        right_str = right_str.strip()
+        left = self.parse_expr(left_str)
+        right = self.parse_expr(right_str)
+        return Eq(left, right)
+
+    # -------------------------------------------------------------------------
     # CORE OPS
     # -------------------------------------------------------------------------
-
     def simplify(self, text: str) -> str:
         expr = self.parse_expr(text)
         simp = expr.simplify()
         memory.write(f"simplify: {text} -> {simp}", tags={"op": "simplify"})
-        return str(simp)
+        result = str(simp)
+        self._last_3d = self._build_3d(
+            text,
+            op="simplify",
+            tokens=self._tokenize(text),
+            result=result,
+            extra={"expr_type": type(expr).__name__},
+        )
+        return result
 
     def derivative(self, text: str, var_name: str = "x") -> str:
         expr = self.parse_expr(text)
         var = Symbol(var_name)
         der = d(expr, var).simplify()
         memory.write(f"d/d{var_name} {text} = {der}", tags={"op": "derivative"})
-        return str(der)
+        result = str(der)
+        self._last_3d = self._build_3d(
+            text,
+            op="derivative",
+            tokens=self._tokenize(text),
+            result=result,
+            extra={"var": var_name, "expr_type": type(expr).__name__},
+        )
+        return result
 
     # -------------------------------------------------------------------------
     # REUSE LOOP
     # -------------------------------------------------------------------------
-
     def _search_similar_problems(self, text: str, limit: int = 3):
         q_emb = embed_math_text(text)
         scored = []
         for item in memory.items:
-            if item.tags.get("op") in ("solve", "derivative") and item.embedding:
+            if item.tags.get("op") in ("solve", "derivative") and item.embedding is not None:
                 score = cosine(q_emb, item.embedding)
                 if score > 0:
                     scored.append((score, item))
@@ -150,7 +267,6 @@ class MathEngine:
     # -------------------------------------------------------------------------
     # QUADRATIC FALLBACK
     # -------------------------------------------------------------------------
-
     def _try_quadratic_fallback(self, left: str, right: str, var_name: str = "x") -> Optional[str]:
         if right.strip() not in ("0", "0.0"):
             return None
@@ -196,10 +312,18 @@ class MathEngine:
     # -------------------------------------------------------------------------
     # SOLVER
     # -------------------------------------------------------------------------
-
     def solve(self, text: str, var_name: str = "x") -> str:
         if not looks_like_math(text):
-            return self.ua.chat(text, tags={"op": "nlq"})
+            emb = embed_math_text(text)
+            memory.write("non_math_query", tags={"op": "nlq"}, embedding=emb)
+            result = "Not a recognizable math expression."
+            self._last_3d = self._build_3d(
+                text,
+                op="solve",
+                result=result,
+                extra={"looks_like_math": False},
+            )
+            return result
 
         similar = self._search_similar_problems(text)
         if similar:
@@ -207,7 +331,7 @@ class MathEngine:
             skimmed = self.skimmer.skim(context)
             memory.write(
                 f"reuse_context for: {text}\n{skimmed}",
-                tags={"op": "reuse", "source": "math"}
+                tags={"op": "reuse", "source": "math"},
             )
 
         eq_text = extract_equation(text)
@@ -218,10 +342,29 @@ class MathEngine:
 
             if isinstance(simp, Number):
                 memory.write(f"eval: {eq_text} -> {simp.value}", tags={"op": "eval"})
-                return str(simp.value)
+                result = str(simp.value)
+                self._last_3d = self._build_3d(
+                    text,
+                    op="solve_eval",
+                    tokens=self._tokenize(eq_text),
+                    result=result,
+                    extra={"expr_type": type(expr).__name__},
+                )
+                return result
 
-            memory.write(f"simplify_expr: {eq_text} -> {simp}", tags={"op": "simplify_expr"})
-            return str(simp)
+            memory.write(
+                f"simplify_expr: {eq_text} -> {simp}",
+                tags={"op": "simplify_expr"},
+            )
+            result = str(simp)
+            self._last_3d = self._build_3d(
+                text,
+                op="solve_simplify",
+                tokens=self._tokenize(eq_text),
+                result=result,
+                extra={"expr_type": type(expr).__name__},
+            )
+            return result
 
         left, right = eq_text.split("=", 1)
         left = left.strip()
@@ -231,15 +374,28 @@ class MathEngine:
         if quad_fallback is not None:
             memory.write(
                 f"solve(quadratic_fallback): {eq_text} -> {quad_fallback}",
-                tags={"op": "solve", "kind": "quadratic_fallback"}
+                tags={"op": "solve", "kind": "quadratic_fallback"},
             )
-            return quad_fallback
+            result = quad_fallback
+            self._last_3d = self._build_3d(
+                text,
+                op="solve_quadratic_fallback",
+                result=result,
+                extra={"eq_text": eq_text},
+            )
+            return result
 
         try:
             eq = Eq(self.parse_expr(left), self.parse_expr(right))
         except Exception as e:
             msg = f"Parse error for equation: {left} = {right} ({e})"
             memory.write(msg, tags={"op": "solve", "status": "parse_fail"})
+            self._last_3d = self._build_3d(
+                text,
+                op="solve_parse_error",
+                result=msg,
+                extra={"eq_text": eq_text},
+            )
             return msg
 
         var = Symbol(var_name)
@@ -247,98 +403,196 @@ class MathEngine:
         lin = solve_linear(eq, var)
         if lin is not None:
             result = f"{var_name} = {lin}"
-            memory.write(f"solve(linear): {eq_text} -> {result}", tags={"op": "solve", "kind": "linear"})
+            memory.write(
+                f"solve(linear): {eq_text} -> {result}",
+                tags={"op": "solve", "kind": "linear"},
+            )
+            self._last_3d = self._build_3d(
+                text,
+                op="solve_linear",
+                result=result,
+                extra={"eq_text": eq_text},
+            )
             return result
 
         quad = solve_quadratic(eq, var)
         if quad is not None:
             if not quad:
                 msg = f"No real solutions for {eq}"
-                memory.write(msg, tags={"op": "solve", "kind": "quadratic", "status": "no_real"})
+                memory.write(
+                    msg,
+                    tags={"op": "solve", "kind": "quadratic", "status": "no_real"},
+                )
+                self._last_3d = self._build_3d(
+                    text,
+                    op="solve_quadratic_no_real",
+                    result=msg,
+                    extra={"eq_text": eq_text},
+                )
                 return msg
             if len(quad) == 1:
                 result = f"{var_name} = {quad[0]}"
             else:
                 result = f"{var_name} = {quad[0]}, {quad[1]}"
-            memory.write(f"solve(quadratic): {eq_text} -> {result}", tags={"op": "solve", "kind": "quadratic"})
+            memory.write(
+                f"solve(quadratic): {eq_text} -> {result}",
+                tags={"op": "solve", "kind": "quadratic"},
+            )
+            self._last_3d = self._build_3d(
+                text,
+                op="solve_quadratic",
+                result=result,
+                extra={"eq_text": eq_text},
+            )
             return result
 
         msg = f"Cannot solve equation (unsupported form): {eq}"
         memory.write(msg, tags={"op": "solve", "status": "fail"})
+        self._last_3d = self._build_3d(
+            text,
+            op="solve_fail",
+            result=msg,
+            extra={"eq_text": eq_text},
+        )
         return msg
 
     # -------------------------------------------------------------------------
     # ENTRYPOINT
     # -------------------------------------------------------------------------
-
     def analyze(self, text: str) -> str:
         if looks_like_math(text):
             emb = embed_math_text(text)
-            memory.write("math_query", tags={"type": "math"}, agent="detector", embedding=emb)
-            return self.solve(text)
+            memory.write("math_query", tags={"type": "math"}, embedding=emb)
+            result = self.solve(text)
+            # _last_3d already set by solve()
+            return result
         else:
-            return self.ua.chat(text, tags={"type": "nlq"})
+            emb = embed_math_text(text)
+            memory.write("non_math_query", tags={"type": "nlq"}, embedding=emb)
+            result = "Not a math query."
+            self._last_3d = self._build_3d(
+                text,
+                op="analyze_non_math",
+                result=result,
+                extra={"looks_like_math": False},
+            )
+            return result
 
     # -------------------------------------------------------------------------
     # CAS EXTENSIONS (HOOKS)
     # -------------------------------------------------------------------------
-
     def integrate_expr(self, text: str, var_name: str = "x") -> str:
         from .symbolic_cas import integrate
         expr = self.parse_expr(text)
         var = Symbol(var_name)
         res = integrate(expr, var)
-        return str(res) if res else "Cannot integrate expression"
+        result = str(res) if res else "Cannot integrate expression"
+        self._last_3d = self._build_3d(
+            text,
+            op="integrate",
+            tokens=self._tokenize(text),
+            result=result,
+            extra={"var": var_name},
+        )
+        return result
 
     def limit_expr(self, expr_str: str, var_name: str, point: float) -> str:
         from .symbolic_cas import limit
         res = limit(expr_str, var_name, point)
-        return res.description
+        result = res.description
+        self._last_3d = self._build_3d(
+            expr_str,
+            op="limit",
+            result=result,
+            extra={"var": var_name, "point": point},
+        )
+        return result
 
     def factor_expr(self, text: str, var_name: str = "x") -> str:
         from .symbolic_cas import factor_quadratic
         expr = self.parse_expr(text)
         var = Symbol(var_name)
         res = factor_quadratic(expr, var)
-        return str(res) if res else "Cannot factor expression"
+        result = str(res) if res else "Cannot factor expression"
+        self._last_3d = self._build_3d(
+            text,
+            op="factor",
+            tokens=self._tokenize(text),
+            result=result,
+            extra={"var": var_name},
+        )
+        return result
 
     # -------------------------------------------------------------------------
     # MATRIX ENGINE HOOKS
     # -------------------------------------------------------------------------
-
     def matrix_parse(self, text: str):
         from .matrix import parse_matrix
-        return parse_matrix(text)
+        M = parse_matrix(text)
+        self._last_3d = self._build_3d(
+            text,
+            op="matrix_parse",
+            result=str(M),
+        )
+        return M
 
     def matrix_det(self, text: str) -> str:
         from .matrix import parse_matrix
         M = parse_matrix(text)
-        return str(M.det())
+        result = str(M.det())
+        self._last_3d = self._build_3d(
+            text,
+            op="matrix_det",
+            result=result,
+        )
+        return result
 
     def matrix_inv(self, text: str) -> str:
         from .matrix import parse_matrix
         M = parse_matrix(text)
-        return str(M.inv())
+        result = str(M.inv())
+        self._last_3d = self._build_3d(
+            text,
+            op="matrix_inv",
+            result=result,
+        )
+        return result
 
     def matrix_mul(self, A: str, B: str) -> str:
         from .matrix import parse_matrix
         M1 = parse_matrix(A)
         M2 = parse_matrix(B)
-        return str(M1 @ M2)
+        result = str(M1 @ M2)
+        self._last_3d = self._build_3d(
+            f"{A} ; {B}",
+            op="matrix_mul",
+            result=result,
+        )
+        return result
 
     def matrix_add(self, A: str, B: str) -> str:
         from .matrix import parse_matrix
         M1 = parse_matrix(A)
         M2 = parse_matrix(B)
-        return str(M1 + M2)
+        result = str(M1 + M2)
+        self._last_3d = self._build_3d(
+            f"{A} ; {B}",
+            op="matrix_add",
+            result=result,
+        )
+        return result
 
     def matrix_sub(self, A: str, B: str) -> str:
         from .matrix import parse_matrix
         M1 = parse_matrix(A)
         M2 = parse_matrix(B)
-        return str(M1 - M2)
-
-
+        result = str(M1 - M2)
+        self._last_3d = self._build_3d(
+            f"{A} ; {B}",
+            op="matrix_sub",
+            result=result,
+        )
+        return result
 
 
 

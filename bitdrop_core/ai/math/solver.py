@@ -1,7 +1,70 @@
 from __future__ import annotations
-from typing import Optional, Tuple, List
+from dataclasses import dataclass
+from typing import Optional, Tuple, List, Dict, Any
 from .symbolic import Expr, Eq, Symbol, Add, Mul, Number, Neg, Pow
+import math
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class Solver3D:
+    """
+    3D structural view of a solve operation.
+
+    axis_x: raw equation string
+    axis_y: expression node decomposition
+    axis_z: metadata (coefficients, discriminant, solution type)
+    """
+    raw_expr: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+_last_3d: Optional[Solver3D] = None
+
+
+# ============================================================
+# INTERNAL 3D BUILDER
+# ============================================================
+
+def _build_3d(expr: Expr, var: Symbol, kind: str, coeffs: Dict[str, float], result: Any) -> Solver3D:
+    def walk(e: Expr, out: List[str]):
+        out.append(type(e).__name__)
+        if isinstance(e, Add) or isinstance(e, Mul):
+            walk(e.left, out)
+            walk(e.right, out)
+        elif isinstance(e, Pow):
+            walk(e.base, out)
+            walk(e.exp, out)
+        elif isinstance(e, Neg):
+            walk(e.expr, out)
+
+    structure: List[str] = []
+    walk(expr, structure)
+
+    axis_z = {
+        "kind": kind,
+        "variable": var.name,
+        "coefficients": coeffs,
+        "result": result,
+        "node_count": len(structure),
+    }
+
+    return Solver3D(
+        raw_expr=str(expr),
+        axis_x=str(expr),
+        axis_y=structure,
+        axis_z=axis_z,
+    )
+
+
+# ============================================================
+# LINEAR COLLECTION
+# ============================================================
 
 def _collect_linear(expr: Expr, var: Symbol) -> Tuple[float, float]:
     # returns (a, b) for a*var + b
@@ -29,13 +92,33 @@ def _collect_linear(expr: Expr, var: Symbol) -> Tuple[float, float]:
 
 
 def solve_linear(eq: Eq, var: Symbol) -> Optional[float]:
-    # solve a*var + b = 0 form
+    global _last_3d
+
     left = Add(eq.left, Neg(eq.right)).simplify()
     a, b = _collect_linear(left, var)
-    if a == 0:
-        return None
-    return -b / a
 
+    if a == 0:
+        _last_3d = _build_3d(
+            left, var, "linear_unsolvable",
+            {"a": a, "b": b},
+            result=None
+        )
+        return None
+
+    sol = -b / a
+
+    _last_3d = _build_3d(
+        left, var, "linear",
+        {"a": a, "b": b},
+        result=sol
+    )
+
+    return sol
+
+
+# ============================================================
+# QUADRATIC COLLECTION
+# ============================================================
 
 def _collect_quadratic(expr: Expr, var: Symbol) -> Tuple[float, float, float]:
     # returns (a, b, c) for a*var^2 + b*var + c
@@ -54,7 +137,6 @@ def _collect_quadratic(expr: Expr, var: Symbol) -> Tuple[float, float, float]:
         a2, b2, c2 = _collect_quadratic(expr.right, var)
         return a1 + a2, b1 + b2, c1 + c2
     if isinstance(expr, Mul):
-        # handle k * x^2, k * x, k * const
         if isinstance(expr.left, Number):
             a, b, c = _collect_quadratic(expr.right, var)
             k = expr.left.value
@@ -70,16 +152,46 @@ def _collect_quadratic(expr: Expr, var: Symbol) -> Tuple[float, float, float]:
 
 
 def solve_quadratic(eq: Eq, var: Symbol) -> Optional[List[float]]:
-    # solve a*var^2 + b*var + c = 0
+    global _last_3d
+
     left = Add(eq.left, Neg(eq.right)).simplify()
     a, b, c = _collect_quadratic(left, var)
+
     if a == 0:
+        _last_3d = _build_3d(
+            left, var, "quadratic_not_quadratic",
+            {"a": a, "b": b, "c": c},
+            result=None
+        )
         return None
+
     disc = b * b - 4 * a * c
+
     if disc < 0:
+        _last_3d = _build_3d(
+            left, var, "quadratic_no_real",
+            {"a": a, "b": b, "c": c, "discriminant": disc},
+            result=[]
+        )
         return []
+
     if disc == 0:
-        return [(-b) / (2 * a)]
-    import math
+        sol = [(-b) / (2 * a)]
+        _last_3d = _build_3d(
+            left, var, "quadratic_single",
+            {"a": a, "b": b, "c": c, "discriminant": disc},
+            result=sol
+        )
+        return sol
+
     sqrt_d = math.sqrt(disc)
-    return [(-b - sqrt_d) / (2 * a), (-b + sqrt_d) / (2 * a)]
+    sol = [(-b - sqrt_d) / (2 * a), (-b + sqrt_d) / (2 * a)]
+
+    _last_3d = _build_3d(
+        left, var, "quadratic_two",
+        {"a": a, "b": b, "c": c, "discriminant": disc},
+        result=sol
+    )
+
+    return sol
+

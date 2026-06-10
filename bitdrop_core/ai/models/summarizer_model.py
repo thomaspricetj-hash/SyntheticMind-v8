@@ -1,6 +1,33 @@
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Any, Optional, List
+
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class Summarizer3D:
+    """
+    3D structural view of a summarization cycle.
+
+    axis_x: high-level operation ("summarize", "clean", "enforce")
+    axis_y: structural decomposition (constraints, text_len)
+    axis_z: metadata (sentences, words, percent, hint, output_len)
+    """
+    axis_x: str
+    axis_y: List[str]
+    axis_z: dict
+
+
+# ============================================================
+# SUMMARIZER (3D‑MAX)
+# ============================================================
+
 class SummarizerModelV1:
     """
-    V5 Ultra‑Precision Summarizer
+    V5 Ultra‑Precision Summarizer (3D‑MAX Edition)
     Features:
         • Exact sentence-count control
         • Exact word-count control
@@ -10,13 +37,12 @@ class SummarizerModelV1:
         • Semantic compression
         • Hallucination-resistant prompting
         • Deterministic cleanup + trimming
+        • 3D‑MAX introspection
     """
 
     def __init__(self, model):
-        """
-        model: any LLM wrapper with .generate(prompt)
-        """
         self.model = model
+        self._last_3d: Optional[Summarizer3D] = None
 
     # ------------------------------------------------------------
     # MAIN SUMMARIZATION ENTRYPOINT
@@ -61,6 +87,23 @@ class SummarizerModelV1:
         if words:
             cleaned = self._enforce_word_limit(cleaned, words)
 
+        # 3D snapshot
+        self._last_3d = Summarizer3D(
+            axis_x="summarize",
+            axis_y=[
+                f"text_len:{len(text)}",
+                f"sentences:{sentences}",
+                f"words:{words}",
+                f"percent:{percent}",
+                f"hint:{length_hint}",
+            ],
+            axis_z={
+                "output_len": len(cleaned),
+                "raw_len": len(raw),
+                "constraint": constraint,
+            },
+        )
+
         return cleaned
 
     # ------------------------------------------------------------
@@ -94,28 +137,33 @@ class SummarizerModelV1:
     # ------------------------------------------------------------
     def _clean(self, text: str) -> str:
         if not text:
-            return ""
+            cleaned = ""
+        else:
+            t = text.strip()
 
-        t = text.strip()
+            bad_prefixes = [
+                "summary:",
+                "the summary is:",
+                "here is the summary:",
+                "tl;dr:",
+                "in summary:",
+            ]
+            t_low = t.lower()
+            for p in bad_prefixes:
+                if t_low.startswith(p):
+                    t = t[len(p):].strip()
+                    break
 
-        # Remove common LLM prefixes
-        bad_prefixes = [
-            "summary:",
-            "the summary is:",
-            "here is the summary:",
-            "tl;dr:",
-            "in summary:",
-        ]
-        t_low = t.lower()
-        for p in bad_prefixes:
-            if t_low.startswith(p):
-                t = t[len(p):].strip()
-                break
+            cleaned = t.strip(" \n\t\"'`")
 
-        # Remove markdown artifacts
-        t = t.strip(" \n\t\"'`")
+        # 3D snapshot
+        self._last_3d = Summarizer3D(
+            axis_x="clean",
+            axis_y=[f"input_len:{len(text)}"],
+            axis_z={"output_len": len(cleaned)},
+        )
 
-        return t
+        return cleaned
 
     # ------------------------------------------------------------
     # SENTENCE ENFORCER
@@ -129,7 +177,6 @@ class SummarizerModelV1:
             sentences = sentences[:target]
 
         if len(sentences) < target:
-            # Pad by splitting long sentences deterministically
             while len(sentences) < target:
                 last = sentences[-1]
                 parts = last.split(",")
@@ -139,7 +186,15 @@ class SummarizerModelV1:
                 else:
                     break
 
-        return ". ".join(sentences).strip() + "."
+        out = ". ".join(sentences).strip() + "."
+
+        self._last_3d = Summarizer3D(
+            axis_x="enforce_sentences",
+            axis_y=[f"target:{target}", f"actual:{len(sentences)}"],
+            axis_z={"output_len": len(out)},
+        )
+
+        return out
 
     # ------------------------------------------------------------
     # WORD LIMIT ENFORCER
@@ -147,9 +202,19 @@ class SummarizerModelV1:
     def _enforce_word_limit(self, text: str, limit: int) -> str:
         words = text.split()
         if len(words) <= limit:
-            return text
-        trimmed = " ".join(words[:limit])
-        return trimmed.rstrip(".,;:") + "."
+            out = text
+        else:
+            trimmed = " ".join(words[:limit])
+            out = trimmed.rstrip(".,;:") + "."
+
+        self._last_3d = Summarizer3D(
+            axis_x="enforce_words",
+            axis_y=[f"limit:{limit}", f"actual:{len(words)}"],
+            axis_z={"output_len": len(out)},
+        )
+
+        return out
+
 
 
 

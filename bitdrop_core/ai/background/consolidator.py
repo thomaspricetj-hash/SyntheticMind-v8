@@ -1,9 +1,32 @@
 # ai/memory/background_consolidator.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import time
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class BackgroundConsolidation3D:
+    """
+    3D structural view of a background consolidation cycle.
+
+    axis_x: high-level operation ("consolidate")
+    axis_y: structural decomposition (themes, facts, prefs, skills, contradictions)
+    axis_z: metadata (counts, timestamps, quality summary)
+    """
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# ============================================================
+# BACKGROUND CONSOLIDATOR (3D‑MAX)
+# ============================================================
 
 class BackgroundConsolidator:
     """
@@ -15,10 +38,12 @@ class BackgroundConsolidator:
         • contradiction logging
         • theme weighting
         • confidence scoring
+    Now 3D‑MAX introspectable.
     """
 
     def __init__(self, runtime: "MetaModelRuntime"):
         self.runtime = runtime
+        self._last_3d: Optional[BackgroundConsolidation3D] = None
 
     # ------------------------------------------------------------
     # PUBLIC API
@@ -30,27 +55,55 @@ class BackgroundConsolidator:
             • semantic memory (facts)
             • vector memory (for retrieval)
         """
+        start = time.time()
+
+        themes = insights.get("themes", {})
+        facts = insights.get("facts", [])
+        prefs = insights.get("preferences", [])
+        skills = insights.get("skills", [])
+        contradictions = insights.get("contradictions", [])
+        trends = insights.get("trends", {})
+        quality = insights.get("quality", {})
 
         # THEMES
-        self._store_themes(insights.get("themes", {}))
+        self._store_themes(themes)
 
         # FACTS
-        self._store_facts(insights.get("facts", []))
+        self._store_facts(facts)
 
         # PREFERENCES
-        self._store_preferences(insights.get("preferences", []))
+        self._store_preferences(prefs)
 
         # SKILLS
-        self._store_skills(insights.get("skills", []))
+        self._store_skills(skills)
 
         # CONTRADICTIONS
-        self._store_contradictions(insights.get("contradictions", []))
+        self._store_contradictions(contradictions)
 
         # TRENDS
-        self._store_trends(insights.get("trends", {}))
+        self._store_trends(trends)
 
         # QUALITY METRICS
-        self._store_quality(insights.get("quality", {}))
+        self._store_quality(quality)
+
+        # 3D envelope
+        latency_ms = int((time.time() - start) * 1000)
+        self._last_3d = BackgroundConsolidation3D(
+            axis_x="consolidate",
+            axis_y=[
+                f"themes:{len(themes)}",
+                f"facts:{len(facts)}",
+                f"preferences:{len(prefs)}",
+                f"skills:{len(skills)}",
+                f"contradictions:{len(contradictions)}",
+            ],
+            axis_z={
+                "latency_ms": latency_ms,
+                "trend_keys": list(trends.keys()),
+                "has_quality": bool(quality),
+                "quality": dict(quality),
+            },
+        )
 
     # ------------------------------------------------------------
     # THEMES
@@ -60,12 +113,10 @@ class BackgroundConsolidator:
             key = f"theme:{theme}"
             value = f"occurrences:{count}"
 
-            # semantic memory: stable fact
             self.runtime.memory.semantic.set(
                 key, value, overwrite=True, confidence=0.8
             )
 
-            # episodic memory: summary
             self.runtime.memory.remember(
                 f"[theme] {theme} occurred {count} times"
             )
@@ -137,4 +188,5 @@ class BackgroundConsolidator:
         )
 
         self.runtime.memory.remember(summary)
+
 

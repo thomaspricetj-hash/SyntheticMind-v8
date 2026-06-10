@@ -4,9 +4,33 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import dataclass
 from typing import Dict, List, Optional
+
 from .goal import Goal
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class GoalStore3D:
+    """
+    3D structural view of a GoalStore operation.
+
+    axis_x: high-level operation ("load", "save", "add", "update", "search", "filter", "archive", "delete")
+    axis_y: structural decomposition (goal_count, op_target)
+    axis_z: metadata (latency, path, keys, error)
+    """
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, any]
+
+
+# ============================================================
+# GOAL STORE (3D‑MAX)
+# ============================================================
 
 class GoalStore:
     """
@@ -16,11 +40,13 @@ class GoalStore:
         • filtering & search
         • soft deletion
         • update history
+    Now 3D‑MAX introspectable.
     """
 
     def __init__(self, path: str = "bitdrop_goals.json"):
         self.path = path
         self.goals: Dict[str, Goal] = {}
+        self._last_3d: Optional[GoalStore3D] = None
         self._load()
 
     # ------------------------------------------------------------
@@ -28,8 +54,14 @@ class GoalStore:
     # ------------------------------------------------------------
 
     def _load(self):
-        """Load goals from disk safely."""
+        start = time.time()
+
         if not os.path.exists(self.path):
+            self._last_3d = GoalStore3D(
+                axis_x="load",
+                axis_y=["file_missing"],
+                axis_z={"path": self.path, "latency_ms": int((time.time() - start) * 1000)},
+            )
             return
 
         try:
@@ -43,7 +75,7 @@ class GoalStore:
                     goal_id=gid
                 )
                 goal.status = g.get("status", "pending")
-                goal.progress = g.get("progress", 0.0)
+                goal.progress = g.get("progress", {})
                 goal.created_at = g.get("created_at", time.time())
                 goal.updated_at = g.get("updated_at", goal.created_at)
                 goal.archived = g.get("archived", False)
@@ -51,16 +83,32 @@ class GoalStore:
 
                 self.goals[gid] = goal
 
-        except Exception:
-            # Corrupted file → rename and start fresh
+            self._last_3d = GoalStore3D(
+                axis_x="load",
+                axis_y=[f"goals:{len(self.goals)}"],
+                axis_z={"path": self.path, "latency_ms": int((time.time() - start) * 1000)},
+            )
+
+        except Exception as e:
             corrupt = self.path + ".corrupt"
             try:
                 os.rename(self.path, corrupt)
             except Exception:
                 pass
 
+            self._last_3d = GoalStore3D(
+                axis_x="load",
+                axis_y=["corrupt_file"],
+                axis_z={
+                    "path": self.path,
+                    "corrupt_path": corrupt,
+                    "error": str(e),
+                    "latency_ms": int((time.time() - start) * 1000),
+                },
+            )
+
     def _save(self):
-        """Atomic save to prevent corruption."""
+        start = time.time()
         tmp_path = self.path + ".tmp"
 
         raw = {
@@ -82,26 +130,44 @@ class GoalStore:
                 json.dump(raw, f, indent=2)
 
             os.replace(tmp_path, self.path)
-        except Exception:
-            # If atomic replace fails, fallback to direct write
+
+            self._last_3d = GoalStore3D(
+                axis_x="save",
+                axis_y=[f"goals:{len(self.goals)}"],
+                axis_z={"path": self.path, "latency_ms": int((time.time() - start) * 1000)},
+            )
+
+        except Exception as e:
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(raw, f, indent=2)
+
+            self._last_3d = GoalStore3D(
+                axis_x="save",
+                axis_y=["fallback_write"],
+                axis_z={
+                    "path": self.path,
+                    "error": str(e),
+                    "latency_ms": int((time.time() - start) * 1000),
+                },
+            )
 
     # ------------------------------------------------------------
     # PUBLIC API
     # ------------------------------------------------------------
 
     def add(self, goal: Goal):
-        """Add a new goal."""
         self.goals[goal.id] = goal
         self._save()
 
+        self._last_3d = GoalStore3D(
+            axis_x="add",
+            axis_y=[f"goal:{goal.id}"],
+            axis_z={"count": len(self.goals)},
+        )
+
     def update(self, goal: Goal):
-        """Update an existing goal and append history."""
         if goal.id in self.goals:
             old = self.goals[goal.id]
-
-            # Track changes
             change = {
                 "ts": time.time(),
                 "old_status": old.status,
@@ -115,48 +181,97 @@ class GoalStore:
         self.goals[goal.id] = goal
         self._save()
 
+        self._last_3d = GoalStore3D(
+            axis_x="update",
+            axis_y=[f"goal:{goal.id}", f"status:{goal.status}"],
+            axis_z={"progress_keys": list(goal.progress.keys())},
+        )
+
     def get(self, goal_id: str) -> Optional[Goal]:
         return self.goals.get(goal_id)
 
     def list(self, include_archived: bool = False) -> List[Goal]:
-        """Return all goals, optionally including archived ones."""
-        if include_archived:
-            return list(self.goals.values())
-        return [g for g in self.goals.values() if not getattr(g, "archived", False)]
+        goals = (
+            list(self.goals.values())
+            if include_archived
+            else [g for g in self.goals.values() if not getattr(g, "archived", False)]
+        )
+
+        self._last_3d = GoalStore3D(
+            axis_x="list",
+            axis_y=[f"include_archived:{include_archived}"],
+            axis_z={"count": len(goals)},
+        )
+
+        return goals
 
     # ------------------------------------------------------------
     # SEARCH / FILTER
     # ------------------------------------------------------------
 
     def search(self, text: str) -> List[Goal]:
-        """Return goals whose text contains the query."""
         text = text.lower()
-        return [g for g in self.goals.values() if text in g.text.lower()]
+        results = [g for g in self.goals.values() if text in g.text.lower()]
+
+        self._last_3d = GoalStore3D(
+            axis_x="search",
+            axis_y=[f"text_len:{len(text)}"],
+            axis_z={"count": len(results)},
+        )
+
+        return results
 
     def filter_by_status(self, status: str) -> List[Goal]:
-        return [g for g in self.goals.values() if g.status == status]
+        results = [g for g in self.goals.values() if g.status == status]
+
+        self._last_3d = GoalStore3D(
+            axis_x="filter_by_status",
+            axis_y=[f"status:{status}"],
+            axis_z={"count": len(results)},
+        )
+
+        return results
 
     def filter_by_tag(self, tag: str) -> List[Goal]:
-        return [
+        results = [
             g for g in self.goals.values()
             if tag in g.metadata.get("tags", [])
         ]
+
+        self._last_3d = GoalStore3D(
+            axis_x="filter_by_tag",
+            axis_y=[f"tag:{tag}"],
+            axis_z={"count": len(results)},
+        )
+
+        return results
 
     # ------------------------------------------------------------
     # ARCHIVAL / DELETION
     # ------------------------------------------------------------
 
     def archive(self, goal_id: str):
-        """Soft-delete a goal (kept for history)."""
         g = self.goals.get(goal_id)
         if g:
             g.archived = True
             g.updated_at = time.time()
             self._save()
 
+            self._last_3d = GoalStore3D(
+                axis_x="archive",
+                axis_y=[f"goal:{goal_id}"],
+                axis_z={"archived": True},
+            )
+
     def delete(self, goal_id: str):
-        """Hard delete."""
         if goal_id in self.goals:
             del self.goals[goal_id]
             self._save()
+
+            self._last_3d = GoalStore3D(
+                axis_x="delete",
+                axis_y=[f"goal:{goal_id}"],
+                axis_z={"remaining": len(self.goals)},
+            )
+
 

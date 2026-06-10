@@ -1,18 +1,33 @@
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Dict, Any, List
 import re
 
+
+# ------------------------------------------------------------
+# 3D STRUCTURE
+# ------------------------------------------------------------
+@dataclass
+class Summarization3D:
+    """
+    3D structural view of summarization intent analysis.
+
+    axis_x: raw text
+    axis_y: line-by-line decomposition
+    axis_z: extracted constraints + triggers
+    """
+    raw_text: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# ------------------------------------------------------------
+# SUMMARIZATION HELPER (3D-AWARE)
+# ------------------------------------------------------------
 class SummarizationHelperV1:
     """
-    Maximum‑strength summarization intent detector.
-    Improvements over V1:
-        • Expanded trigger set (40+ patterns)
-        • Stronger negative-case filtering
-        • Better constraint extraction (sentences, words, percent)
-        • Multi‑tier fallback logic
-        • Detects "key ideas", "core points", "essentials"
-        • Detects "simplify", "explain like I'm 5", "ELI5"
-        • Detects "compress", "condense", "boil down"
-        • Detects "short answer", "short explanation"
-        • Cleaner, faster, more deterministic
+    Maximum‑strength summarization intent detector (3D-enabled).
     """
 
     # Precompiled patterns
@@ -31,7 +46,7 @@ class SummarizationHelperV1:
         "summary table",
         "summary report",
         "summary of benefits",
-        "executive summary",   # user may want to write one, not summarize text
+        "executive summary",
         "summary offense",
     ]
 
@@ -68,24 +83,41 @@ class SummarizationHelperV1:
         "short answer",
     ]
 
+    # ------------------------------------------------------------
+    # 3D builder
+    # ------------------------------------------------------------
+    def _build_3d(self, text: str, result: Dict[str, Any]) -> Summarization3D:
+        lines = (text or "").splitlines()
+        axis_z = dict(result)
+        return Summarization3D(
+            raw_text=text or "",
+            axis_x=text or "",
+            axis_y=lines,
+            axis_z=axis_z,
+        )
+
+    # ------------------------------------------------------------
+    # Main analysis
+    # ------------------------------------------------------------
     def analyze(self, text: str) -> dict:
         t = text.lower()
 
         # --- 1. Negative-case filtering ---
         for neg in self.NEGATIVE_PATTERNS:
             if neg in t:
-                return {
+                result = {
                     "detected": False,
                     "sentences": None,
                     "words": None,
                     "percent": None,
                     "length_hint": None,
                 }
+                result["structure_3d"] = self._build_3d(text, result)
+                return result
 
         # --- 2. Summarization intent detection ---
         detected = any(trigger in t for trigger in self.PRIMARY_TRIGGERS)
 
-        # Secondary heuristics
         if not detected:
             if any(phrase in t for phrase in ["key points", "main points", "core points"]):
                 detected = True
@@ -123,14 +155,20 @@ class SummarizationHelperV1:
             elif "quick summary" in t:
                 length_hint = "brief"
 
-        # --- 5. Return structured result ---
-        return {
+        # --- 5. Build result ---
+        result = {
             "detected": detected,
             "sentences": sentences,
             "words": words,
             "percent": percent,
             "length_hint": length_hint,
         }
+
+        # --- 6. Attach 3D structure ---
+        result["structure_3d"] = self._build_3d(text, result)
+
+        return result
+
 
 
 

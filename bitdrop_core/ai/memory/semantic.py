@@ -1,98 +1,115 @@
-# ai/memory/semantic.py
-
 from __future__ import annotations
-from typing import Dict, Any, Optional, List
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
+import time
 
+from bitdrop_core.ai.compression.bitdrop_collapse_codec import BitDropCollapseEngine
+
+
+
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Semantic3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# HYBRID SEMANTIC MEMORY — FACTS + BITDROP + 3D‑MAX
+# ============================================================
 
 class SemanticMemory:
     """
-    Stores stable, structured facts and knowledge.
-    Supports:
-      • key-value storage
-      • namespaces (categories)
-      • fuzzy lookup
-      • prefix search
-      • safe overwrite rules
+    Hybrid semantic memory.
+
+    Stores:
+        • key → collapsed value (BitDrop)
+        • hybrid profile / version
+        • 3D‑MAX telemetry
+
+    Exposes:
+        • set(key, value)  — auto‑collapse
+        • get(key)         — auto‑expand
+        • clear()
     """
 
     def __init__(self):
-        # facts are stored as: { "key": {"value": ..., "meta": {...}} }
-        self.facts: Dict[str, Dict[str, Any]] = {}
+        self._facts: Dict[str, Dict[str, Any]] = {}
+        self._bitdrop = BitDropCollapseEngine()
+        self._last_3d: Optional[Semantic3D] = None
 
     # ------------------------------------------------------------
-    # CORE OPERATIONS
+    # SET
     # ------------------------------------------------------------
-
-    def set(self, key: str, value: Any, *, overwrite: bool = True, meta: Optional[dict] = None):
+    def set(self, key: str, value: str, profile: str = "balanced"):
         """
-        Store a semantic fact.
-        overwrite=False prevents accidental replacement.
-        meta can include: source, confidence, timestamp, tags, etc.
+        Store a fact with hybrid collapse.
         """
-        if not key:
-            return False
+        collapsed = self._bitdrop.collapse(value)
+        collapsed_bytes = collapsed.encode("utf-8")
 
-        if key in self.facts and not overwrite:
-            return False
-
-        self.facts[key] = {
-            "value": value,
-            "meta": meta or {}
-        }
-        return True
-
-    def get(self, key: str) -> Optional[Any]:
-        """Retrieve the value of a fact."""
-        entry = self.facts.get(key)
-        return entry["value"] if entry else None
-
-    def delete(self, key: str) -> bool:
-        """Remove a fact."""
-        return self.facts.pop(key, None) is not None
-
-    # ------------------------------------------------------------
-    # SEARCH / QUERY
-    # ------------------------------------------------------------
-
-    def keys(self) -> List[str]:
-        """Return all fact keys."""
-        return list(self.facts.keys())
-
-    def all(self) -> Dict[str, Dict[str, Any]]:
-        """Return full structured fact store."""
-        return dict(self.facts)
-
-    def search_prefix(self, prefix: str) -> Dict[str, Any]:
-        """Return all facts whose keys start with the given prefix."""
-        return {
-            k: v["value"]
-            for k, v in self.facts.items()
-            if k.startswith(prefix)
+        self._facts[key] = {
+            "collapsed": collapsed_bytes,
+            "profile": profile,
+            "version": 2,
+            "created_at": time.time(),
         }
 
-    def search_contains(self, substring: str) -> Dict[str, Any]:
-        """Return all facts whose keys contain the substring."""
-        return {
-            k: v["value"]
-            for k, v in self.facts.items()
-            if substring in k
-        }
+        self._last_3d = Semantic3D(
+            axis_x="set",
+            axis_y=[f"key:{key}", f"profile:{profile}"],
+            axis_z={
+                "len_raw": len(value),
+                "len_collapsed": len(collapsed_bytes),
+                "version": 2,
+            },
+        )
 
     # ------------------------------------------------------------
-    # UTILITIES
+    # GET
     # ------------------------------------------------------------
+    def get(self, key: str) -> Optional[str]:
+        """
+        Retrieve and expand a fact.
+        """
+        entry = self._facts.get(key)
+        if not entry:
+            self._last_3d = Semantic3D(
+                axis_x="get",
+                axis_y=[f"key:{key}"],
+                axis_z={"found": False},
+            )
+            return None
 
-    def export(self) -> Dict[str, Dict[str, Any]]:
-        """Return a deep copy for persistence."""
-        return {k: dict(v) for k, v in self.facts.items()}
+        collapsed_bytes = entry["collapsed"]
+        collapsed = collapsed_bytes.decode("utf-8")
+        expanded = self._bitdrop.expand(collapsed)
 
-    def import_from(self, data: Dict[str, Dict[str, Any]]):
-        """Load facts from a saved dictionary."""
-        for k, v in data.items():
-            if isinstance(v, dict) and "value" in v:
-                self.facts[k] = v
+        self._last_3d = Semantic3D(
+            axis_x="get",
+            axis_y=[f"key:{key}"],
+            axis_z={
+                "found": True,
+                "profile": entry.get("profile", "balanced"),
+                "version": entry.get("version", 2),
+            },
+        )
 
+        return expanded
+
+    # ------------------------------------------------------------
+    # CLEAR
+    # ------------------------------------------------------------
     def clear(self):
-        """Erase all semantic memory."""
-        self.facts.clear()
+        self._facts.clear()
+        self._last_3d = Semantic3D(
+            axis_x="clear",
+            axis_y=["facts:0"],
+            axis_z={"status": "cleared"},
+        )
+
 

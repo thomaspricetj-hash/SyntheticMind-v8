@@ -2,10 +2,21 @@ import time
 import subprocess
 import math
 import os
+from dataclasses import dataclass
+from typing import Dict, Any
+
+
+@dataclass
+class Helper3D:
+    name: str
+    axis_x: str          # device: "cpu" / "gpu"
+    axis_y: Dict[str, Any]  # timing, mode, cpu_slot
+    axis_z: Dict[str, Any]  # gpu state snapshot
+
 
 class OrganizerHelperV6:
     """
-    OrganizerHelperV6 (MAX)
+    OrganizerHelperV6 (MAX, 3D-aware)
     • Dynamic CPU/GPU routing
     • GPU util + VRAM + temperature sensing
     • Helper timing history (EMA)
@@ -13,6 +24,7 @@ class OrganizerHelperV6:
     • Auto-fallback when GPU is overloaded
     • Self-optimizing per request
     • CPU load spreading across all cores
+    • 3D helper layout (device / timing / gpu-state)
     """
 
     PRIORITY_GPU = {
@@ -40,7 +52,7 @@ class OrganizerHelperV6:
 
     def __init__(self, logger=None):
         self.logger = logger
-        self.helper_timings = {}
+        self.helper_timings: Dict[str, float] = {}
         self.mode = "balanced"
 
         # CPU load balancing
@@ -120,11 +132,31 @@ class OrganizerHelperV6:
         return "cpu"
 
     # ------------------------------------------------------------
+    # 3D helper layout builder
+    # ------------------------------------------------------------
+    def _build_helper_3d(self, name: str, device: str, cpu_slot: int, util: int, mem_ratio: float, temp: int) -> Helper3D:
+        axis_x = device
+        axis_y = {
+            "mode": self.mode,
+            "avg_time": self.helper_timings.get(name, 0.0),
+            "cpu_slot": cpu_slot,
+        }
+        axis_z = {
+            "gpu_util": util,
+            "gpu_mem_ratio": mem_ratio,
+            "gpu_temp": temp,
+        }
+        return Helper3D(name=name, axis_x=axis_x, axis_y=axis_y, axis_z=axis_z)
+
+    # ------------------------------------------------------------
     # Main organizer
     # ------------------------------------------------------------
     def organize(self, helpers: dict):
         util, mem_ratio, temp = self._get_gpu_state()
         self._update_mode(util, mem_ratio, temp)
+
+        # Optional: 3D map of helpers for downstream introspection
+        helper_3d_map: Dict[str, Helper3D] = {}
 
         for key, h in helpers.items():
             name = getattr(h, "name", None)
@@ -134,16 +166,30 @@ class OrganizerHelperV6:
             device = self._assign_device(name, util, mem_ratio, temp)
             h.preferred_device = device
 
-            # ⭐ CPU load spreading
             if device == "cpu":
-                h.cpu_slot = self._assign_cpu_slot()
+                cpu_slot = self._assign_cpu_slot()
+                h.cpu_slot = cpu_slot
                 if self.logger:
-                    self.logger.debug(f"[Organizer] {name} → CPU (core {h.cpu_slot})")
+                    self.logger.debug(f"[Organizer] {name} → CPU (core {cpu_slot})")
             else:
+                cpu_slot = None
                 h.cpu_slot = None
                 if self.logger:
                     self.logger.debug(f"[Organizer] {name} → GPU")
 
+            helper_3d_map[name] = self._build_helper_3d(
+                name=name,
+                device=device,
+                cpu_slot=cpu_slot if cpu_slot is not None else -1,
+                util=util,
+                mem_ratio=mem_ratio,
+                temp=temp,
+            )
+
+        # Expose 3D layout on the organizer for anyone who wants it
+        self.helper_3d_map = helper_3d_map
+
         return helpers
+
 
 

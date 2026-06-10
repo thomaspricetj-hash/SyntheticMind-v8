@@ -1,0 +1,14 @@
+C:\Users\thomas price\Desktop\SyntheticMind-v8\target\debug\deps\pyo3_build_config-53229dd47c375181.d: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\errors.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\impl_.rs C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config-file.txt C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config.txt
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\target\debug\deps\libpyo3_build_config-53229dd47c375181.rlib: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\errors.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\impl_.rs C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config-file.txt C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config.txt
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\target\debug\deps\libpyo3_build_config-53229dd47c375181.rmeta: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\errors.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\impl_.rs C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config-file.txt C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config.txt
+
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\lib.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\errors.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.21.2\src\impl_.rs:
+C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config-file.txt:
+C:\Users\thomas\ price\Desktop\SyntheticMind-v8\target\debug\build\pyo3-build-config-19693dc1aef66494\out/pyo3-build-config.txt:
+
+# env-dep:CARGO_PKG_VERSION=0.21.2
+# env-dep:OUT_DIR=C:\\Users\\thomas price\\Desktop\\SyntheticMind-v8\\target\\debug\\build\\pyo3-build-config-19693dc1aef66494\\out

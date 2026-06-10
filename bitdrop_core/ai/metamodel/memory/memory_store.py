@@ -1,95 +1,165 @@
 from __future__ import annotations
-from typing import Any
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
+import os
+import json
+import time
 
-from .memory_item import MemoryItem
-from .memory_index import MemoryIndex
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Store3D:
+    op: str
+    path: str
+    count: int
+    latency_ms: float
+    extra: Dict[str, Any]
+
+
+_last_3d_store: Optional[Store3D] = None
+
+
+def _3d(op: str, path: str, count: int, start: float, extra: Dict[str, Any] | None = None):
+    global _last_3d_store
+    latency = (time.time() - start) * 1000.0
+    _last_3d_store = Store3D(
+        op=op,
+        path=path,
+        count=count,
+        latency_ms=latency,
+        extra=extra or {},
+    )
+    return _last_3d_store
+
+
+# ============================================================
+# MEMORY STORE (STRICT‑M2 + HYBRID BITDROP)
+# ============================================================
 
 class MemoryStore:
     """
-    Strict M2 Memory Store:
-        • NO text stored in memory items
-        • NO chunks stored
-        • embeddings + bloom + patterns
-        • BitDrop binary as the ONLY stored representation
-        • on-demand decompression from BitDrop binary
+    Strict‑M2 storage layer.
+    Stores MemoryItem objects as JSON files with hybrid BitDrop V2 binary payloads.
+    Fully 3D‑MAX instrumented.
     """
 
-    def __init__(self, helper, bitdrop):
+    def __init__(self, helper=None, bitdrop=None, folder: str = "memory_store"):
         self.helper = helper
         self.bitdrop = bitdrop
-        self.index = MemoryIndex()
+        self.folder = folder
 
-    # ------------------------------------------------------------
-    # WRITE MEMORY
-    # ------------------------------------------------------------
-    def write(self, text: str) -> MemoryItem:
-        """
-        Convert raw text into signals + BitDrop binary.
-        Store only the compressed representation and search signals.
-        """
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
-        # Derive signals
-        chunks = self.helper.chunk_text(text)
-        embedding = self.helper.embed_text(text)
-        bloom = self.helper.build_bloom(chunks)
-        patterns = self.helper.extract_patterns(chunks)
+    # -------------------------------------------------------------
+    # SAVE
+    # -------------------------------------------------------------
 
-        # Collapse to BitDrop binary
-        binary = self.bitdrop.collapse_text(text)
+    def save(self, item):
+        start = time.time()
 
-        # Build memory item (strict M2: no raw text stored)
+        idx = int(time.time() * 1000000)
+        path = os.path.join(self.folder, f"{idx}.json")
+
+        payload = {
+            "embedding": item.embedding,
+            "bloom": list(item.bloom),
+            "patterns": item.patterns,
+            "bitdrop_binary": item.bitdrop_binary,
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+
+        _3d("save", path, 1, start, {"item_id": idx})
+        return True
+
+    # -------------------------------------------------------------
+    # LOAD SINGLE
+    # -------------------------------------------------------------
+
+    def load(self, filename: str):
+        start = time.time()
+        path = os.path.join(self.folder, filename)
+
+        if not os.path.exists(path):
+            _3d("load_missing", path, 0, start)
+            return None
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        from bitdrop_core.ai.metamodel.memory.memory_item import MemoryItem
+
         item = MemoryItem(
-            embedding=embedding,
-            bloom=bloom,
-            patterns=patterns,
-            bitdrop_binary=binary,
+            embedding=data.get("embedding", []),
+            bloom=set(data.get("bloom", [])),
+            patterns=data.get("patterns", {}),
+            bitdrop_binary=data.get("bitdrop_binary", ""),
         )
 
-        # Add to index
-        self.index.add(item)
+        _3d("load", path, 1, start)
         return item
 
-    # ------------------------------------------------------------
-    # READ MEMORY
-    # ------------------------------------------------------------
-    def read(self, query: str, top_k: int = 5):
-        """
-        Generate query signals and perform hybrid search.
-        Returns MemoryItem objects (not text).
-        """
+    # -------------------------------------------------------------
+    # LOAD ALL
+    # -------------------------------------------------------------
 
-        q_chunks = self.helper.chunk_text(query)
-        q_embed = self.helper.embed_text(query)
-        q_bloom = self.helper.build_bloom(q_chunks)
-        q_patterns = self.helper.extract_patterns(q_chunks)
+    def load_all(self) -> List[Any]:
+        start = time.time()
 
-        return self.index.search(
-            query_embedding=q_embed,
-            query_bloom=q_bloom,
-            query_patterns=q_patterns,
-            top_k=top_k,
-        )
+        files = [
+            f for f in os.listdir(self.folder)
+            if f.endswith(".json")
+        ]
 
-    # ------------------------------------------------------------
-    # DECOMPRESSOR
-    # ------------------------------------------------------------
-    def expand_item_text(self, item: MemoryItem) -> str:
-        """
-        Reconstruct text from BitDrop binary.
-        """
+        items = []
+        from bitdrop_core.ai.metamodel.memory.memory_item import MemoryItem
 
-        binary = getattr(item, "bitdrop_binary", None)
-        if not binary:
-            return ""
+        for fname in files:
+            path = os.path.join(self.folder, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
 
-        return self.bitdrop.expand_text(binary)
+                item = MemoryItem(
+                    embedding=data.get("embedding", []),
+                    bloom=set(data.get("bloom", [])),
+                    patterns=data.get("patterns", {}),
+                    bitdrop_binary=data.get("bitdrop_binary", ""),
+                )
+                items.append(item)
 
-    def expand_items_text(self, items) -> list[str]:
-        """
-        Expand a list of MemoryItem objects into reconstructed text.
-        """
-        return [self.expand_item_text(it) for it in items]
+            except Exception:
+                continue
+
+        _3d("load_all", self.folder, len(items), start, {"files": len(files)})
+        return items
+
+    # -------------------------------------------------------------
+    # CLEAR
+    # -------------------------------------------------------------
+
+    def clear(self):
+        start = time.time()
+
+        count = 0
+        for f in os.listdir(self.folder):
+            if f.endswith(".json"):
+                try:
+                    os.remove(os.path.join(self.folder, f))
+                    count += 1
+                except Exception:
+                    pass
+
+        _3d("clear", self.folder, count, start)
+        return count
+
+
+
 
 
 

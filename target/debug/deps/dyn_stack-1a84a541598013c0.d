@@ -1,0 +1,10 @@
+C:\Users\thomas price\Desktop\SyntheticMind-v8\target\debug\deps\dyn_stack-1a84a541598013c0.d: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\alloc.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\mem.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\stack_req.rs
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\target\debug\deps\libdyn_stack-1a84a541598013c0.rlib: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\alloc.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\mem.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\stack_req.rs
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\target\debug\deps\libdyn_stack-1a84a541598013c0.rmeta: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\alloc.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\mem.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\stack_req.rs
+
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\lib.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\alloc.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\mem.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dyn-stack-0.13.2\src\stack_req.rs:

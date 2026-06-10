@@ -1,8 +1,28 @@
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import re
 import zlib
-from typing import Dict, Any, List, Optional
 
 from ..context.packet import Packet
+
+
+# ------------------------------------------------------------
+# 3D STRUCTURE
+# ------------------------------------------------------------
+@dataclass
+class WebSearch3D:
+    """
+    3D structural view of web-search analysis.
+
+    axis_x: raw query
+    axis_y: token/line decomposition
+    axis_z: search metadata + results
+    """
+    raw_query: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
 
 
 # ------------------------------------------------------------
@@ -61,16 +81,34 @@ class MicroResultNormalizer:
 
 
 # ------------------------------------------------------------
-# MAIN HELPER
+# MAIN HELPER (3D-AWARE)
 # ------------------------------------------------------------
 class WebSearchHelper:
     """
-    Ultra-fast WebSearchHelper with integrated micro-helpers.
+    Ultra-fast WebSearchHelper with integrated micro-helpers + 3D structural output.
     """
 
     def __init__(self, engine):
         self.engine = engine
         self.cache: Dict[int, Dict[str, Any]] = {}
+
+    # ---------------------------------------------------------
+    # 3D builder
+    # ---------------------------------------------------------
+    def _build_3d(self, query: str, detected: bool, results: List[Dict[str, str]]) -> WebSearch3D:
+        lines = (query or "").splitlines()
+        axis_z = {
+            "detected": detected,
+            "result_count": len(results),
+            "results": results,
+            "tokens": re.findall(r"\S+", query or ""),
+        }
+        return WebSearch3D(
+            raw_query=query or "",
+            axis_x=query or "",
+            axis_y=lines,
+            axis_z=axis_z,
+        )
 
     # ---------------------------------------------------------
     # Main entrypoint
@@ -85,7 +123,8 @@ class WebSearchHelper:
 
         query = (query or "").strip()
         if not query:
-            return {"detected": False, "results": []}
+            structure_3d = self._build_3d("", False, [])
+            return {"detected": False, "results": [], "structure_3d": structure_3d}
 
         # Micro: normalize + limit
         query = MicroStringStripper.clean(query)
@@ -94,15 +133,17 @@ class WebSearchHelper:
         # Micro: fast dedupe
         h = MicroFastHash.h(query)
         if h in self.cache:
-            return self.cache[h]
+            cached = self.cache[h]
+            cached["structure_3d"] = self._build_3d(query, cached["detected"], cached["results"])
+            return cached
 
         # Fast search-intent detection
         if not MicroSearchClassifier.should_search(query):
-            return {"detected": False, "results": []}
+            structure_3d = self._build_3d(query, False, [])
+            return {"detected": False, "results": [], "structure_3d": structure_3d}
 
         # Call the engine
         raw_results = self.engine.search(query, top_k=top_k) or []
-
         normalized = MicroResultNormalizer.normalize(raw_results)
 
         envelope = {
@@ -112,5 +153,10 @@ class WebSearchHelper:
 
         # Cache
         self.cache[h] = envelope
+
+        # Attach 3D structure
+        envelope["structure_3d"] = self._build_3d(query, True, normalized)
+
         return envelope
+
 

@@ -1,16 +1,32 @@
 # syntheticmind/tools/agent.py
 
 from __future__ import annotations
-from typing import Dict, Any
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
 import time
 import traceback
 
 from .tool_registry import ToolRegistry
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Agent3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# AGENT — MAX DISPATCH + 3D‑MAX
+# ============================================================
+
 class Agent:
     """
-    Command interpreter + tool dispatcher.
+    Command interpreter + tool dispatcher (3D‑MAX Edition).
 
     Supports:
         • python execution
@@ -18,10 +34,12 @@ class Agent:
         • future tool types
         • structured envelopes
         • safe execution
+        • 3D‑MAX telemetry
     """
 
     def __init__(self):
         self.registry = ToolRegistry()
+        self._last_3d: Optional[Agent3D] = None
 
     # ------------------------------------------------------------
     # INTERNAL: SAFE TOOL LOOKUP
@@ -74,20 +92,28 @@ class Agent:
         """
 
         start = time.time()
+        raw = command
+        command = command.strip()
 
         try:
-            command = command.strip()
-
             # ----------------------------------------------------
             # PYTHON EXECUTION
             # ----------------------------------------------------
             if command.startswith("python:"):
                 code = command[len("python:"):].strip()
                 result = self._run_python(code)
+
+                latency = int((time.time() - start) * 1000)
+                self._last_3d = Agent3D(
+                    axis_x="run",
+                    axis_y=["python"],
+                    axis_z={"latency_ms": latency},
+                )
+
                 return {
                     "ok": True,
-                    "latency_ms": int((time.time() - start) * 1000),
-                    "command": command,
+                    "latency_ms": latency,
+                    "command": raw,
                     "result": result,
                     "error": None,
                 }
@@ -98,10 +124,18 @@ class Agent:
             if command.startswith("read:"):
                 path = command[len("read:"):].strip()
                 result = self._run_read(path)
+
+                latency = int((time.time() - start) * 1000)
+                self._last_3d = Agent3D(
+                    axis_x="run",
+                    axis_y=["read"],
+                    axis_z={"latency_ms": latency},
+                )
+
                 return {
                     "ok": True,
-                    "latency_ms": int((time.time() - start) * 1000),
-                    "command": command,
+                    "latency_ms": latency,
+                    "command": raw,
                     "result": result,
                     "error": None,
                 }
@@ -116,10 +150,18 @@ class Agent:
 
                 path, content = rest.split("|", 1)
                 result = self._run_write(path.strip(), content)
+
+                latency = int((time.time() - start) * 1000)
+                self._last_3d = Agent3D(
+                    axis_x="run",
+                    axis_y=["write"],
+                    axis_z={"latency_ms": latency},
+                )
+
                 return {
                     "ok": True,
-                    "latency_ms": int((time.time() - start) * 1000),
-                    "command": command,
+                    "latency_ms": latency,
+                    "command": raw,
                     "result": result,
                     "error": None,
                 }
@@ -130,11 +172,20 @@ class Agent:
             raise ValueError(f"unknown command: {command}")
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = Agent3D(
+                axis_x="run",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
-                "command": command,
+                "latency_ms": latency,
+                "command": raw,
                 "result": None,
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
+

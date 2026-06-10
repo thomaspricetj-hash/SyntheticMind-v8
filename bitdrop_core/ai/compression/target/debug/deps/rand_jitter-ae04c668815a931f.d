@@ -1,0 +1,10 @@
+C:\Users\thomas price\Desktop\SyntheticMind-v8\bitdrop_core\ai\compression\target\debug\deps\rand_jitter-ae04c668815a931f.d: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\dummy_log.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\platform.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\error.rs
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\bitdrop_core\ai\compression\target\debug\deps\librand_jitter-ae04c668815a931f.rlib: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\dummy_log.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\platform.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\error.rs
+
+C:\Users\thomas price\Desktop\SyntheticMind-v8\bitdrop_core\ai\compression\target\debug\deps\librand_jitter-ae04c668815a931f.rmeta: C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\lib.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\dummy_log.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\platform.rs C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\error.rs
+
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\lib.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\dummy_log.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\platform.rs:
+C:\Users\thomas\ price\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand_jitter-0.1.4\src\error.rs:

@@ -10,6 +10,42 @@ import json
 from .bitdrop_kernel_adapter import BitDropKernelAdapter
 
 
+# ------------------------------------------------------------
+# MICRO HELPERS (SHARED)
+# ------------------------------------------------------------
+class MicroStringStripper:
+    __slots__ = ()
+
+    @staticmethod
+    def clean(text: str) -> str:
+        return " ".join((text or "").split())
+
+
+class MicroTokenLimiter:
+    __slots__ = ()
+
+    @staticmethod
+    def limit(text: str, max_chars: int = 1_000_000) -> str:
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars]
+
+
+class MicroFastHash:
+    __slots__ = ()
+
+    @staticmethod
+    def h_bytes(data: bytes) -> int:
+        return zlib.crc32(data)
+
+    @staticmethod
+    def h_text(text: str) -> int:
+        return zlib.crc32(text.encode("utf-8"))
+
+
+# ------------------------------------------------------------
+# BitDropManager (1D, maxed)
+# ------------------------------------------------------------
 class BitDropManager:
     """
     BitDrop v3 – Binary-native compression manager with integrity checks and tunable compression.
@@ -48,14 +84,22 @@ class BitDropManager:
         self.bloom_hashes = bloom_hashes
         self.kernel = BitDropKernelAdapter(lib_path=lib_path)
         self.max_passes = max_passes
-        # zlib compression level (1–9)
         self.compression_level = max(1, min(9, compression_level))
+
+        # Caches
+        self._collapse_text_cache: Dict[int, bytes] = {}
+        self._expand_text_cache: Dict[int, str] = {}
+        self._collapse_bytes_cache: Dict[int, bytes] = {}
+        self._expand_bytes_cache: Dict[int, bytes] = {}
+        self._compress_json_cache: Dict[int, bytes] = {}
+        self._decompress_json_cache: Dict[int, Any] = {}
 
     # ------------------------------------------------------------
     # CHUNKING / BLOOM / PATTERNS (for routing, not stored in blob)
     # ------------------------------------------------------------
     def chunk_text(self, text: str) -> List[str]:
-        text = (text or "").strip()
+        text = MicroStringStripper.clean(text or "")
+        text = MicroTokenLimiter.limit(text)
         if not text:
             return []
         return [
@@ -94,15 +138,6 @@ class BitDropManager:
     # INTERNAL: multi-pass collapse + flat PTS packing
     # ------------------------------------------------------------
     def _multi_pass_collapse(self, data: bytes) -> Tuple[bytes, bytes]:
-        """
-        Run the GPU kernel repeatedly until collapse_count == 0
-        or max_passes is reached.
-
-        Returns:
-            final_payload, accumulated_tags
-
-        Tags are accumulated across passes; positions are implicit by index.
-        """
         payload = data
         all_tags = bytearray()
 
@@ -115,17 +150,9 @@ class BitDropManager:
         return payload, bytes(all_tags)
 
     def _compute_crc32(self, payload: bytes, tags: bytes) -> int:
-        """
-        Compute CRC32 over payload||tags for integrity checking.
-        """
         return zlib.crc32(payload + tags) & 0xFFFFFFFF
 
     def _pack_pts_blob(self, payload: bytes, tags: bytes) -> bytes:
-        """
-        Build the flat PTS binary block:
-
-            magic | payload_len | tags_len | crc32 | payload | tags
-        """
         crc = self._compute_crc32(payload, tags)
         header = struct.pack(
             ">4sIII",
@@ -137,11 +164,7 @@ class BitDropManager:
         return header + payload + tags
 
     def _unpack_pts_blob(self, blob: bytes) -> Tuple[bytes, bytes]:
-        """
-        Parse the flat PTS binary block and verify CRC.
-        Returns (payload, tags); returns (b"", b"") on failure.
-        """
-        header_size = 4 + 4 + 4 + 4  # magic + payload_len + tags_len + crc32
+        header_size = 4 + 4 + 4 + 4
         if len(blob) < header_size:
             return b"", b""
 
@@ -160,7 +183,6 @@ class BitDropManager:
         payload = blob[start_payload:end_payload]
         tags = blob[start_tags:end_tags]
 
-        # Verify CRC
         expected_crc = self._compute_crc32(payload, tags)
         if expected_crc != crc:
             return b"", b""
@@ -168,9 +190,6 @@ class BitDropManager:
         return payload, tags
 
     def is_valid_blob(self, blob: bytes) -> bool:
-        """
-        Quick integrity check: validates magic, lengths, and CRC.
-        """
         if not blob:
             return False
         payload, tags = self._unpack_pts_blob(blob)
@@ -180,78 +199,78 @@ class BitDropManager:
     # PUBLIC: text collapse / expand (binary-first)
     # ------------------------------------------------------------
     def collapse_text(self, text: str) -> bytes:
-        """
-        Full forward pipeline for text:
-
-            text -> UTF-8 bytes
-                 -> multi-pass GPU collapse (payload + tags)
-                 -> PTS binary block
-                 -> high-level compression
-
-        Returns:
-            opaque binary blob (bytes)
-        """
         if not text:
             return b""
 
-        raw = text.encode("utf-8")
+        text = MicroStringStripper.clean(text)
+        text = MicroTokenLimiter.limit(text)
+        h = MicroFastHash.h_text(text)
+        cached = self._collapse_text_cache.get(h)
+        if cached is not None:
+            return cached
 
+        raw = text.encode("utf-8")
         payload, tags = self._multi_pass_collapse(raw)
         pts_blob = self._pack_pts_blob(payload, tags)
-
         compressed = zlib.compress(pts_blob, level=self.compression_level)
+
+        self._collapse_text_cache[h] = compressed
         return compressed
 
     def expand_text(self, blob: bytes) -> str:
-        """
-        Reverse pipeline (partial until full kernel expand is wired):
-
-            blob -> decompressor -> PTS block -> payload + tags
-
-        For now:
-            we decode payload as UTF-8 best-effort.
-            When you expose kernel expand + PTS reconstruction,
-            this will call that instead.
-        """
         if not blob:
             return ""
+
+        h = MicroFastHash.h_bytes(blob)
+        cached = self._expand_text_cache.get(h)
+        if cached is not None:
+            return cached
 
         try:
             pts_blob = zlib.decompress(blob)
         except Exception:
-            # If it's not compressed, treat as raw PTS blob
             pts_blob = blob
 
         payload, _tags = self._unpack_pts_blob(pts_blob)
         if not payload:
+            self._expand_text_cache[h] = ""
             return ""
 
         try:
-            return payload.decode("utf-8", errors="ignore")
+            txt = payload.decode("utf-8", errors="ignore")
         except Exception:
-            return ""
+            txt = ""
+
+        self._expand_text_cache[h] = txt
+        return txt
 
     # ------------------------------------------------------------
     # PUBLIC: raw bytes collapse / expand
     # ------------------------------------------------------------
     def collapse_bytes(self, data: bytes) -> bytes:
-        """
-        Same as collapse_text, but starts from raw bytes instead of str.
-        """
         if not data:
             return b""
+
+        h = MicroFastHash.h_bytes(data)
+        cached = self._collapse_bytes_cache.get(h)
+        if cached is not None:
+            return cached
 
         payload, tags = self._multi_pass_collapse(data)
         pts_blob = self._pack_pts_blob(payload, tags)
         compressed = zlib.compress(pts_blob, level=self.compression_level)
+
+        self._collapse_bytes_cache[h] = compressed
         return compressed
 
     def expand_bytes(self, blob: bytes) -> bytes:
-        """
-        Reverse of collapse_bytes, returning raw bytes (payload only).
-        """
         if not blob:
             return b""
+
+        h = MicroFastHash.h_bytes(blob)
+        cached = self._expand_bytes_cache.get(h)
+        if cached is not None:
+            return cached
 
         try:
             pts_blob = zlib.decompress(blob)
@@ -259,36 +278,194 @@ class BitDropManager:
             pts_blob = blob
 
         payload, _tags = self._unpack_pts_blob(pts_blob)
+        self._expand_bytes_cache[h] = payload
         return payload
 
     # ------------------------------------------------------------
     # PUBLIC: JSON / struct compression (binary-first)
     # ------------------------------------------------------------
     def compress_json(self, obj: Any) -> bytes:
-        """
-        Serialize a Python object (dict/list/etc.) to compact JSON text,
-        then run it through the same BitDrop + compression pipeline.
-
-        Output is a fully binary blob suitable for fast transport/storage.
-        """
         txt = json.dumps(obj, separators=(",", ":"))
-        return self.collapse_text(txt)
+        txt = MicroStringStripper.clean(txt)
+        txt = MicroTokenLimiter.limit(txt)
+        h = MicroFastHash.h_text(txt)
+        cached = self._compress_json_cache.get(h)
+        if cached is not None:
+            return cached
+
+        blob = self.collapse_text(txt)
+        self._compress_json_cache[h] = blob
+        return blob
 
     def decompress_json(self, blob: bytes) -> Any:
-        """
-        Reverse of compress_json:
-            blob -> BitDrop expand -> JSON text -> Python object
+        if not blob:
+            return None
 
-        Returns:
-            Parsed Python object on success, or None on failure.
-        """
+        h = MicroFastHash.h_bytes(blob)
+        cached = self._decompress_json_cache.get(h)
+        if cached is not None:
+            return cached
+
         txt = self.expand_text(blob)
         if not txt:
+            self._decompress_json_cache[h] = None
             return None
         try:
-            return json.loads(txt)
+            obj = json.loads(txt)
         except Exception:
-            return None
+            obj = None
 
+        self._decompress_json_cache[h] = obj
+        return obj
+
+
+# ------------------------------------------------------------
+# BitDropManager3D (3D-max wrapper)
+# ------------------------------------------------------------
+class BitDropManager3D:
+    """
+    3D BitDrop manager:
+        • Reuses BitDropManager core logic
+        • Operates on 3D grids [D][H][W]
+        • Amplifies caches across 3D space
+    """
+
+    def __init__(
+        self,
+        chunk_size: int = 256,
+        bloom_size: int = 2048,
+        bloom_hashes: int = 3,
+        lib_path: Optional[str] = None,
+        max_passes: int = 8,
+        compression_level: int = 6,
+    ) -> None:
+        self.manager = BitDropManager(
+            chunk_size=chunk_size,
+            bloom_size=bloom_size,
+            bloom_hashes=bloom_hashes,
+            lib_path=lib_path,
+            max_passes=max_passes,
+            compression_level=compression_level,
+        )
+
+    # 3D text collapse
+    def collapse_text_3d(
+        self,
+        texts_3d: List[List[List[str]]],
+    ) -> List[List[List[bytes]]]:
+        depth = len(texts_3d)
+        out: List[List[List[bytes]]] = []
+
+        for d in range(depth):
+            plane = texts_3d[d]
+            plane_out: List[List[bytes]] = []
+            for row in plane:
+                row_out: List[bytes] = []
+                for t in row:
+                    row_out.append(self.manager.collapse_text(t))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    # 3D text expand
+    def expand_text_3d(
+        self,
+        blobs_3d: List[List[List[bytes]]],
+    ) -> List[List[List[str]]]:
+        depth = len(blobs_3d)
+        out: List[List[List[str]]] = []
+
+        for d in range(depth):
+            plane = blobs_3d[d]
+            plane_out: List[List[str]] = []
+            for row in plane:
+                row_out: List[str] = []
+                for b in row:
+                    row_out.append(self.manager.expand_text(b))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    # 3D bytes collapse
+    def collapse_bytes_3d(
+        self,
+        data_3d: List[List[List[bytes]]],
+    ) -> List[List[List[bytes]]]:
+        depth = len(data_3d)
+        out: List[List[List[bytes]]] = []
+
+        for d in range(depth):
+            plane = data_3d[d]
+            plane_out: List[List[bytes]] = []
+            for row in plane:
+                row_out: List[bytes] = []
+                for b in row:
+                    row_out.append(self.manager.collapse_bytes(b))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    # 3D bytes expand
+    def expand_bytes_3d(
+        self,
+        blobs_3d: List[List[List[bytes]]],
+    ) -> List[List[List[bytes]]]:
+        depth = len(blobs_3d)
+        out: List[List[List[bytes]]] = []
+
+        for d in range(depth):
+            plane = blobs_3d[d]
+            plane_out: List[List[bytes]] = []
+            for row in plane:
+                row_out: List[bytes] = []
+                for b in row:
+                    row_out.append(self.manager.expand_bytes(b))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    # 3D JSON compress
+    def compress_json_3d(
+        self,
+        objs_3d: List[List[List[Any]]],
+    ) -> List[List[List[bytes]]]:
+        depth = len(objs_3d)
+        out: List[List[List[bytes]]] = []
+
+        for d in range(depth):
+            plane = objs_3d[d]
+            plane_out: List[List[bytes]] = []
+            for row in plane:
+                row_out: List[bytes] = []
+                for obj in row:
+                    row_out.append(self.manager.compress_json(obj))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    # 3D JSON decompress
+    def decompress_json_3d(
+        self,
+        blobs_3d: List[List[List[bytes]]],
+    ) -> List[List[List[Any]]]:
+        depth = len(blobs_3d)
+        out: List[List[List[Any]]] = []
+
+        for d in range(depth):
+            plane = blobs_3d[d]
+            plane_out: List[List[Any]] = []
+            for row in plane:
+                row_out: List[Any] = []
+                for b in row:
+                    row_out.append(self.manager.decompress_json(b))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
 
 

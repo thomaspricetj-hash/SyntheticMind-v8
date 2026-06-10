@@ -1,10 +1,58 @@
-# ai/memory/memory_issue_detector.py
-
 from __future__ import annotations
-from typing import List, Dict, Any
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
 import re
 from collections import defaultdict
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class MemoryIssue3D:
+    """
+    3D structural view of a memory issue detection cycle.
+
+    axis_x: raw items (stringified)
+    axis_y: structural decomposition (payload types, lengths)
+    axis_z: metadata (duplicates, near-duplicates, contradictions, noise, suspicious)
+    """
+    raw_items: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+_last_3d: Optional[MemoryIssue3D] = None
+
+
+def _build_3d(items: List[Dict[str, Any]], report: Dict[str, Any]) -> MemoryIssue3D:
+    axis_y = []
+    for it in items:
+        payload = it.get("payload", "")
+        axis_y.append(f"{type(payload).__name__}:{len(str(payload))}")
+
+    axis_z = {
+        "duplicates": report.get("duplicates", []),
+        "near_duplicates": report.get("near_duplicates", []),
+        "contradictions": report.get("contradictions", []),
+        "noise": report.get("noise", []),
+        "suspicious": report.get("suspicious", []),
+        "total_issues": sum(len(v) for v in report.values()),
+    }
+
+    return MemoryIssue3D(
+        raw_items=str(items),
+        axis_x=str(items),
+        axis_y=axis_y,
+        axis_z=axis_z,
+    )
+
+
+# ============================================================
+# MEMORY ISSUE DETECTOR (3D‑MAX)
+# ============================================================
 
 class MemoryIssueDetector:
     """
@@ -14,12 +62,15 @@ class MemoryIssueDetector:
         • contradictions (semantic + structural)
         • noise entries (short, low-entropy, malformed)
         • suspicious patterns
+    Now fully 3D‑MAX introspectable.
     """
 
     # ------------------------------------------------------------
     # PUBLIC API
     # ------------------------------------------------------------
     def detect(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        global _last_3d
+
         duplicates = []
         near_duplicates = []
         contradictions = []
@@ -68,7 +119,7 @@ class MemoryIssueDetector:
             if self._is_suspicious(text):
                 suspicious.append(text)
 
-        return {
+        report = {
             "duplicates": duplicates,
             "near_duplicates": near_duplicates,
             "contradictions": contradictions,
@@ -76,16 +127,15 @@ class MemoryIssueDetector:
             "suspicious": suspicious,
         }
 
+        # Attach 3D structure
+        _last_3d = _build_3d(items, report)
+
+        return report
+
     # ------------------------------------------------------------
     # NORMALIZATION FOR NEAR-DUPLICATE DETECTION
     # ------------------------------------------------------------
     def _normalize(self, text: str) -> str:
-        """
-        Normalize text for fuzzy duplicate detection:
-            • lowercase
-            • remove punctuation
-            • collapse whitespace
-        """
         t = text.lower()
         t = re.sub(r"[^a-z0-9 ]+", "", t)
         t = re.sub(r"\s+", " ", t)
@@ -95,22 +145,14 @@ class MemoryIssueDetector:
     # CONTRADICTION DETECTION
     # ------------------------------------------------------------
     def _is_contradiction(self, text: str) -> bool:
-        """
-        Detect contradictions such as:
-            'X is Y' vs 'X is not Y'
-            'I never X' vs 'I X'
-            explicit contradiction markers
-        """
         t = text.lower()
 
         if "contradiction:" in t:
             return True
 
-        # Simple structural contradiction
         if " is " in t and " not " in t:
             return True
 
-        # Negation patterns
         if "never" in t and "i " in t:
             return True
 
@@ -120,21 +162,12 @@ class MemoryIssueDetector:
     # NOISE DETECTION
     # ------------------------------------------------------------
     def _is_noise(self, text: str) -> bool:
-        """
-        Noise includes:
-            • very short strings
-            • low-entropy strings
-            • repeated characters
-            • malformed entries
-        """
         if len(text) < 5:
             return True
 
-        # Low entropy: e.g., "aaaaaa", "111111"
         if len(set(text)) <= 2:
             return True
 
-        # Garbage patterns
         if re.fullmatch(r"[^\w]+", text):
             return True
 
@@ -144,24 +177,16 @@ class MemoryIssueDetector:
     # SUSPICIOUS PATTERN DETECTION
     # ------------------------------------------------------------
     def _is_suspicious(self, text: str) -> bool:
-        """
-        Suspicious entries include:
-            • truncated sentences
-            • repeated prefixes
-            • memory corruption indicators
-        """
         t = text.lower()
 
-        # Truncated or incomplete
         if t.endswith(("...", "--", "??", "!!")):
             return True
 
-        # Corruption markers
-        if " " in text or "\x00" in text:
+        if "\x00" in text:
             return True
 
-        # Repeated prefix patterns
         if re.match(r"(.+)\1{2,}", t):
             return True
 
         return False
+

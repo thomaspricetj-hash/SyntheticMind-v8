@@ -1,10 +1,35 @@
+# bitdrop_core/ai/metamodel/librarian.py
+
 from __future__ import annotations
 from typing import List, Dict, Any, Optional
+import zlib
 
 from .librarian_helper import LibrarianHelper
 from .book_metadata import find_by_role
 
 
+# ------------------------------------------------------------
+# MICRO HELPERS (shared)
+# ------------------------------------------------------------
+class MicroStringStripper:
+    __slots__ = ()
+
+    @staticmethod
+    def clean(text: str) -> str:
+        return " ".join((text or "").split())
+
+
+class MicroFastHash:
+    __slots__ = ()
+
+    @staticmethod
+    def h(text: str) -> int:
+        return zlib.crc32(text.encode("utf-8"))
+
+
+# ------------------------------------------------------------
+# Librarian (1D, max‑improved)
+# ------------------------------------------------------------
 class Librarian:
     """
     Librarian orchestrator:
@@ -15,19 +40,18 @@ class Librarian:
     """
 
     def __init__(self, helper: LibrarianHelper | None = None):
-        # Helper handles:
-        #   - ollama.generate()
-        #   - summarization
-        #   - embeddings (if needed)
         self.helper = helper or LibrarianHelper()
 
-        # Default roles to query for context building
         self.default_roles = [
             "general_reasoning",
             "deep_reasoning",
             "math",
             "code",
         ]
+
+        # Cache for context summaries
+        self._context_cache: Dict[int, str] = {}
+        self._notes_cache: Dict[int, List[str]] = {}
 
     # ------------------------------------------------------------
     # INTERNAL: resolve model name for a given role
@@ -39,7 +63,7 @@ class Librarian:
         return page.get("name")
 
     # ------------------------------------------------------------
-    # PUBLIC: build a compressed context summary
+    # PUBLIC: build a compressed context summary (cached)
     # ------------------------------------------------------------
     def build_context(
         self,
@@ -47,22 +71,19 @@ class Librarian:
         max_words: int = 220,
         roles: Optional[List[str]] = None,
     ) -> str:
-        """
-        Pull focused notes from multiple specialist models, then summarize.
-        This is NOT the final answer — the small model uses this as context.
-
-        Steps:
-            1. Normalize query
-            2. Select roles
-            3. Query each model for technical notes
-            4. Aggregate notes
-            5. Summarize into a compact context packet
-        """
-        query = (query or "").strip()
+        query = MicroStringStripper.clean(query or "")
         if not query:
             return ""
 
         roles = roles or self.default_roles
+
+        # Cache key
+        key = f"{query}|{','.join(roles)}|{max_words}"
+        h = MicroFastHash.h(key)
+        cached = self._context_cache.get(h)
+        if cached is not None:
+            return cached
+
         notes: List[str] = []
 
         # --------------------------------------------------------
@@ -79,36 +100,29 @@ class Librarian:
                 f"Provide ONLY technical notes, insights, equations, edge cases, "
                 f"and reasoning fragments relevant to answering this question.\n"
                 f"Do NOT provide a final answer.\n"
-                f"Do NOT explain like a teacher.\n"
-                f"Do NOT format as a full essay.\n\n"
                 f"Return concise bullet points or short paragraphs of raw reasoning."
             )
 
             result = self.helper.ollama.generate(model_name, prompt)
-
             if result.get("ok"):
                 resp = (result.get("response") or "").strip()
                 if resp:
                     notes.append(f"[{role}] {resp}")
 
         if not notes:
+            self._context_cache[h] = ""
             return ""
 
-        # --------------------------------------------------------
-        # Combine raw notes
-        # --------------------------------------------------------
         raw_context = "\n\n".join(notes)
-
-        # --------------------------------------------------------
-        # Summarize into a compact context packet
-        # --------------------------------------------------------
         summary = self.helper.summarize_text(raw_context, max_words=max_words)
+        final = summary or raw_context
 
-        # If summarizer fails, fall back to raw context
-        return summary or raw_context
+        self._context_cache[h] = final
+        self._notes_cache[h] = notes
+        return final
 
     # ------------------------------------------------------------
-    # PUBLIC: full reasoning pipeline (optional)
+    # PUBLIC: full reasoning pipeline (cached)
     # ------------------------------------------------------------
     def answer_with_context(
         self,
@@ -116,15 +130,20 @@ class Librarian:
         max_words: int = 220,
         roles: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Optional helper: returns BOTH the context and the raw notes.
-        Useful for debugging or for feeding into your Orchestrator.
-        """
-        query = (query or "").strip()
+        query = MicroStringStripper.clean(query or "")
         if not query:
             return {"context": "", "raw_notes": []}
 
         roles = roles or self.default_roles
+
+        key = f"ANSWER|{query}|{','.join(roles)}|{max_words}"
+        h = MicroFastHash.h(key)
+        if h in self._context_cache and h in self._notes_cache:
+            return {
+                "context": self._context_cache[h],
+                "raw_notes": self._notes_cache[h],
+            }
+
         notes: List[str] = []
 
         for role in roles:
@@ -147,12 +166,81 @@ class Librarian:
 
         raw_context = "\n\n".join(notes)
         summary = self.helper.summarize_text(raw_context, max_words=max_words)
+        final = summary or raw_context
+
+        self._context_cache[h] = final
+        self._notes_cache[h] = notes
 
         return {
-            "context": summary or raw_context,
+            "context": final,
             "raw_notes": notes,
         }
 
 
+# ------------------------------------------------------------
+# Librarian3D (3D‑max wrapper)
+# ------------------------------------------------------------
+class Librarian3D:
+    """
+    3D‑max Librarian:
+        • Accepts 3D grids [D][H][W] of queries
+        • Returns 3D grids of context summaries
+        • Uses full caching from Librarian
+    """
 
+    def __init__(self, helper: LibrarianHelper | None = None):
+        self.librarian = Librarian(helper)
 
+    def build_context_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        max_words: int = 220,
+        roles: Optional[List[str]] = None,
+    ) -> List[List[List[str]]]:
+        depth = len(queries_3d)
+        out: List[List[List[str]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[str]] = []
+            for row in plane:
+                row_out: List[str] = []
+                for q in row:
+                    row_out.append(
+                        self.librarian.build_context(
+                            query=q,
+                            max_words=max_words,
+                            roles=roles,
+                        )
+                    )
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    def answer_with_context_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        max_words: int = 220,
+        roles: Optional[List[str]] = None,
+    ) -> List[List[List[Dict[str, Any]]]]:
+        depth = len(queries_3d)
+        out: List[List[List[Dict[str, Any]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Dict[str, Any]]] = []
+            for row in plane:
+                row_out: List[Dict[str, Any]] = []
+                for q in row:
+                    row_out.append(
+                        self.librarian.answer_with_context(
+                            query=q,
+                            max_words=max_words,
+                            roles=roles,
+                        )
+                    )
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out

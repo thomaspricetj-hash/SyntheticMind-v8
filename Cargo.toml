@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "bitdrop_core",
+    "bitdrop_core/ai/turbovec",
+    "bitdrop_core/ai/python_wrapper",
+]
+

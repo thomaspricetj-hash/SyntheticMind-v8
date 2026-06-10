@@ -1,14 +1,28 @@
-# syntheticmind/worldmodel/world_model_propagator.py
-
 from __future__ import annotations
-from typing import Dict, Any, List, Set
+from dataclasses import dataclass
+from typing import Dict, Any, List, Set, Optional
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class WMProp3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# WORLD MODEL PROPAGATOR — MAX PROPAGATION + 3D‑MAX
+# ============================================================
+
 class WorldModelPropagator:
     """
-    Propagates effects through relations in the world model.
+    Propagates effects through relations in the world model (3D‑MAX Edition).
 
     Features:
         • multi-hop propagation
@@ -17,10 +31,12 @@ class WorldModelPropagator:
         • structured envelopes
         • latency measurement
         • future-proof for simulation layers
+        • 3D‑MAX telemetry
     """
 
     def __init__(self, manager: "WorldModelManager"):
         self.manager = manager
+        self._last_3d: Optional[WMProp3D] = None
 
     # ------------------------------------------------------------
     # MAIN ENTRYPOINT
@@ -37,6 +53,7 @@ class WorldModelPropagator:
                 "root": str,
                 "visited": [...],
                 "relations": [...],
+                "depth_used": int,
                 "error": None
             }
         """
@@ -58,8 +75,13 @@ class WorldModelPropagator:
 
                     visited.add(entity)
 
-                    # Query world model for outgoing relations
-                    rels = self.manager.query(entity)
+                    # Query world model
+                    q = self.manager.query(entity)
+                    if not q.get("ok", True):
+                        raise ValueError(q.get("error", "query failed"))
+
+                    # Extract relations from envelope
+                    rels = q.get("result", {}).get("relations", [])
                     all_relations.extend(rels)
 
                     # Collect next-hop targets
@@ -70,9 +92,25 @@ class WorldModelPropagator:
 
                 frontier = next_frontier
 
+            latency = int((time.time() - start) * 1000)
+
+            # 3D‑MAX telemetry
+            self._last_3d = WMProp3D(
+                axis_x="propagate",
+                axis_y=[
+                    f"root:{root_entity}",
+                    f"visited:{len(visited)}",
+                    f"relations:{len(all_relations)}",
+                ],
+                axis_z={
+                    "latency_ms": latency,
+                    "depth_used": max_depth,
+                },
+            )
+
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "root": root_entity,
                 "visited": list(visited),
                 "relations": all_relations,
@@ -81,9 +119,17 @@ class WorldModelPropagator:
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = WMProp3D(
+                axis_x="propagate",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "root": root_entity,
                 "visited": [],
                 "relations": [],

@@ -1,7 +1,66 @@
 from __future__ import annotations
-from typing import Callable, Optional
+from dataclasses import dataclass
+from typing import Callable, Optional, Dict, Any, List
 from .symbolic import Expr, Add, Mul, Pow, Number, Symbol, Neg
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class PatternRewrite3D:
+    """
+    3D structural view of a single rewrite attempt.
+
+    axis_x: raw expression string
+    axis_y: expression node decomposition
+    axis_z: metadata (matched rule, applied, before/after)
+    """
+    raw_expr: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# ============================================================
+# INTERNAL 3D BUILDER
+# ============================================================
+
+def _build_3d(expr: Expr, rule_name: Optional[str], before: Expr, after: Expr) -> PatternRewrite3D:
+    def walk(e: Expr, out: List[str]):
+        out.append(type(e).__name__)
+        if isinstance(e, Add) or isinstance(e, Mul):
+            walk(e.left, out)
+            walk(e.right, out)
+        elif isinstance(e, Pow):
+            walk(e.base, out)
+            walk(e.exp, out)
+        elif isinstance(e, Neg):
+            walk(e.expr, out)
+
+    structure: List[str] = []
+    walk(expr, structure)
+
+    axis_z = {
+        "matched_rule": rule_name,
+        "applied": rule_name is not None,
+        "before": str(before),
+        "after": str(after),
+        "node_count": len(structure),
+    }
+
+    return PatternRewrite3D(
+        raw_expr=str(expr),
+        axis_x=str(expr),
+        axis_y=structure,
+        axis_z=axis_z,
+    )
+
+
+# ============================================================
+# PATTERN RULES
+# ============================================================
 
 class PatternRule:
     def __init__(self, name: str, match: Callable[[Expr], bool], apply: Callable[[Expr], Expr]):
@@ -81,9 +140,29 @@ RULES = [
 ]
 
 
+# ============================================================
+# MAIN REWRITE FUNCTION (3D‑MAX)
+# ============================================================
+
+_last_3d: Optional[PatternRewrite3D] = None
+
+
 def rewrite_once(expr: Expr) -> Expr:
+    """
+    Applies at most one rewrite rule.
+    Stores a 3D structural envelope in `_last_3d`.
+    """
+
+    global _last_3d
+    before = expr
+
     for rule in RULES:
         out = rule.try_apply(expr)
         if out is not None:
+            _last_3d = _build_3d(expr, rule.name, before, out)
             return out
+
+    # No rule matched
+    _last_3d = _build_3d(expr, None, before, expr)
     return expr
+

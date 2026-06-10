@@ -1,15 +1,31 @@
 # syntheticmind/taskgraph/node.py
 
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
 import uuid
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class TaskNode3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# TASK NODE — MAX STRUCT + 3D‑MAX
+# ============================================================
+
 class TaskNode:
     """
-    A single node in the TaskGraph.
+    A single node in the TaskGraph (3D‑MAX Edition).
 
     Types (suggested):
         - "reason"   : LLM reasoning
@@ -53,6 +69,13 @@ class TaskNode:
             "notes": [],
         }
 
+        # 3D‑MAX telemetry
+        self._last_3d: Optional[TaskNode3D] = TaskNode3D(
+            axis_x="init",
+            axis_y=[f"type:{node_type}"],
+            axis_z={"created_at": self.created_at},
+        )
+
     # ------------------------------------------------------------
     # GRAPH LINKING
     # ------------------------------------------------------------
@@ -60,9 +83,21 @@ class TaskNode:
         if child_id not in self.children:
             self.children.append(child_id)
 
+        self._last_3d = TaskNode3D(
+            axis_x="add_child",
+            axis_y=[f"{self.id}->{child_id}"],
+            axis_z={"child_count": len(self.children)},
+        )
+
     def add_parent(self, parent_id: str):
         if parent_id not in self.parents:
             self.parents.append(parent_id)
+
+        self._last_3d = TaskNode3D(
+            axis_x="add_parent",
+            axis_y=[f"{parent_id}->{self.id}"],
+            axis_z={"parent_count": len(self.parents)},
+        )
 
     # ------------------------------------------------------------
     # EXECUTION MARKERS
@@ -72,17 +107,41 @@ class TaskNode:
         self.started_at = time.time()
         self.metadata["attempts"] += 1
 
+        self._last_3d = TaskNode3D(
+            axis_x="mark_running",
+            axis_y=[f"node:{self.id}"],
+            axis_z={"attempts": self.metadata["attempts"]},
+        )
+
     def mark_done(self, result: Any):
         self.status = "done"
         self.result = result
         if self.started_at:
             self.latency_ms = int((time.time() - self.started_at) * 1000)
 
+        self._last_3d = TaskNode3D(
+            axis_x="mark_done",
+            axis_y=[f"node:{self.id}"],
+            axis_z={
+                "latency_ms": self.latency_ms,
+                "has_result": result is not None,
+            },
+        )
+
     def mark_error(self, error: str):
         self.status = "error"
         self.error = error
         if self.started_at:
             self.latency_ms = int((time.time() - self.started_at) * 1000)
+
+        self._last_3d = TaskNode3D(
+            axis_x="mark_error",
+            axis_y=[f"node:{self.id}"],
+            axis_z={
+                "latency_ms": self.latency_ms,
+                "error": error,
+            },
+        )
 
     # ------------------------------------------------------------
     # SAFE SNAPSHOT
@@ -93,7 +152,7 @@ class TaskNode:
         """
 
         try:
-            return {
+            snap = {
                 "ok": True,
                 "id": self.id,
                 "type": self.type,
@@ -106,7 +165,22 @@ class TaskNode:
                 "created_at": self.created_at,
                 "metadata": self.metadata,
             }
+
+            self._last_3d = TaskNode3D(
+                axis_x="snapshot",
+                axis_y=[f"node:{self.id}"],
+                axis_z={"status": self.status},
+            )
+
+            return snap
+
         except Exception as e:
+            self._last_3d = TaskNode3D(
+                axis_x="snapshot",
+                axis_y=[f"node:{self.id}", "exception"],
+                axis_z={"error": str(e)},
+            )
+
             return {
                 "ok": False,
                 "id": self.id,
@@ -115,4 +189,5 @@ class TaskNode:
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
+
 

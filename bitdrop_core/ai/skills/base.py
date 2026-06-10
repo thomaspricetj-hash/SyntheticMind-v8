@@ -1,14 +1,28 @@
-# syntheticmind/skills/skill.py
-
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Any, Dict
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Skill3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# SKILL — MAX SPEED + 3D‑MAX
+# ============================================================
+
 class Skill:
     """
-    Base class for reusable skills.
+    Base class for reusable skills — 3D‑MAX EDITION.
     A skill is a named, parameterized workflow.
 
     Provides:
@@ -17,7 +31,8 @@ class Skill:
         • safe execution wrapper
         • parameter validation hook
         • evolution metadata
-        • future-proof interface for SkillRegistry + SkillRunner
+        • 3D‑MAX introspection
+        • future‑proof interface for SkillRegistry + SkillRunner
     """
 
     # ------------------------------------------------------------
@@ -26,6 +41,9 @@ class Skill:
     name: str = "base-skill"
     description: str = "Base skill"
     version: str = "1.0.0"
+
+    def __init__(self):
+        self._last_3d: Skill3D | None = None
 
     # ------------------------------------------------------------
     # PUBLIC ENTRYPOINT
@@ -53,21 +71,43 @@ class Skill:
             # Execute skill
             output = self.run(params)
 
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = Skill3D(
+                axis_x="call",
+                axis_y=[f"params:{len(params)}"],
+                axis_z={
+                    "latency_ms": latency,
+                    "ok": True,
+                    "skill": self.name,
+                },
+            )
+
             return {
                 "ok": True,
                 "skill": self.name,
                 "version": self.version,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "output": output,
                 "error": None,
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = Skill3D(
+                axis_x="call",
+                axis_y=["exception"],
+                axis_z={
+                    "latency_ms": latency,
+                    "ok": False,
+                    "error": str(e),
+                },
+            )
+
             return {
                 "ok": False,
                 "skill": self.name,
                 "version": self.version,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "output": None,
                 "error": str(e),
                 "traceback": traceback.format_exc(),
@@ -92,3 +132,4 @@ class Skill:
         Must return the skill's output.
         """
         raise NotImplementedError(f"Skill '{self.name}' must implement run()")
+

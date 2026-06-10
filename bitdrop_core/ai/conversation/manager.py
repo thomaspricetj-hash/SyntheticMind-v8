@@ -1,56 +1,61 @@
 from __future__ import annotations
-from typing import Dict, Any, Optional
-import uuid
-import time
+
 import re
+import time
+import uuid
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from bitdrop_core.ai.metamodel.context.packet import Packet
+from bitdrop_core.ai.self_model.personality_adapter import PersonalityAdapter
+from bitdrop_core.ai.self_model.growth_loop import run_growth_cycle
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class Conversation3D:
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# ============================================================
+# CONVERSATION MANAGER (3D‑MAX, DEEP ROUTER AWARE)
+# ============================================================
 
 class ConversationManager:
-    """
-    Hybrid adaptive conversational layer on top of MetaModelRuntime.
-
-    Capabilities:
-        • Tone + intent detection
-        • Hybrid persona blending
-        • Multi-turn context tracking
-        • Memory-aware responses
-        • Routing into cognitive subsystems
-        • Web-search intent detection
-        • Error-safe execution
-        • Natural, human-like replies
-    """
-
     HARD_WEB_TRIGGERS = [
-        "use web search",
-        "search the internet",
-        "search the web",
-        "look up online",
-        "online search",
-        "web search",
-        "find online",
-        "lookup online",
+        "use web search", "search the internet", "search the web",
+        "look up online", "online search", "web search",
+        "find online", "lookup online",
     ]
 
     SOFT_WEB_TRIGGERS = [
-        "what is",
-        "who is",
-        "latest",
-        "current",
-        "news",
-        "update",
-        "recent",
-        "information about",
-        "info about",
+        "what is", "who is", "latest", "current", "news",
+        "update", "recent", "information about", "info about",
     ]
 
-    def __init__(self, runtime: "MetaModelRuntime"):
+    def __init__(self, runtime: "MetaModelRuntime", base_dir: str):
         self.runtime = runtime
+        self.base_dir = base_dir
+        self.persona = PersonalityAdapter(base_dir=base_dir)
         self.session_states: Dict[str, Dict[str, Any]] = {}
+        self._last_3d: Optional[Conversation3D] = None
+        self._last_packet: Optional[Packet] = None
+        self._last_router_result: Any = None
+
+        te = getattr(self.runtime, "thinking_engine", None)
+        if te is not None and hasattr(te, "warmup"):
+            try:
+                te.warmup(mode="conversation")
+            except Exception:
+                pass
 
     # ---------------------------------------------------------
-    # Session state helpers
+    # Session state
     # ---------------------------------------------------------
     def _get_session(self, session_id: Optional[str]) -> Dict[str, Any]:
         if not session_id:
@@ -63,6 +68,7 @@ class ConversationManager:
                 "mood": "neutral",
                 "turns": 0,
                 "history": [],
+                "persona_header": None,
             }
 
         return self.session_states[session_id]
@@ -72,27 +78,19 @@ class ConversationManager:
     # ---------------------------------------------------------
     def _detect_tone(self, text: str) -> str:
         t = text.strip().lower()
-
         if not t:
             return "neutral"
 
-        playful = ["lol", "lmao", "😂", ",🤣", "haha", "funny"]
-        frustrated = ["wtf", "why is", "this sucks", "annoying", "frustrated"]
-        emotional = ["i feel", "i'm feeling", "worried", "scared", "anxious"]
-        builder = ["let's build", "architecture", "design", "pipeline", "optimize"]
-        serious = ["serious", "no joke", "honestly", "for real"]
-
-        if any(x in t for x in playful):
+        if any(x in t for x in ["lol", "lmao", "😂", "🤣", "haha"]):
             return "playful"
-        if any(x in t for x in frustrated):
+        if any(x in t for x in ["wtf", "why is", "this sucks", "annoying"]):
             return "frustrated"
-        if any(x in t for x in emotional):
+        if any(x in t for x in ["i feel", "worried", "scared", "anxious"]):
             return "emotional"
-        if any(x in t for x in builder):
+        if any(x in t for x in ["let's build", "architecture", "design", "pipeline"]):
             return "builder"
-        if any(x in t for x in serious):
+        if any(x in t for x in ["serious", "honestly", "for real"]):
             return "serious"
-
         if "?" in t:
             return "curious"
 
@@ -103,30 +101,22 @@ class ConversationManager:
     # ---------------------------------------------------------
     def _detect_high_level_intent(self, text: str) -> str:
         t = text.strip().lower()
-
         if not t:
             return "small_talk"
 
-        greeting = ["hi", "hey", "hello", "yo", "what's up", "sup"]
-        explain = ["explain", "how does", "why does", "what is", "teach me"]
-        strategy = ["help me plan", "strategy", "roadmap", "multi-step"]
-        simulate = ["simulate", "what happens if", "if i do", "if we do"]
-        debate = ["argue", "debate", "pros and cons", "which is better"]
-        memory_write = ["remember that", "don't forget", "store this", "save this"]
-
-        if any(x in t for x in greeting):
+        if any(x in t for x in ["hi", "hey", "hello", "yo"]):
             return "greeting"
         if "thank" in t:
             return "gratitude"
-        if any(x in t for x in explain):
+        if any(x in t for x in ["explain", "how does", "why does", "what is"]):
             return "explain"
-        if any(x in t for x in strategy):
+        if any(x in t for x in ["help me plan", "strategy", "roadmap"]):
             return "strategy"
-        if any(x in t for x in simulate):
+        if any(x in t for x in ["simulate", "what happens if"]):
             return "simulate"
-        if any(x in t for x in debate):
+        if any(x in t for x in ["argue", "debate", "pros and cons"]):
             return "debate"
-        if any(x in t for x in memory_write):
+        if any(x in t for x in ["remember that", "store this", "save this"]):
             return "memory_write"
 
         return "small_talk"
@@ -136,14 +126,72 @@ class ConversationManager:
     # ---------------------------------------------------------
     def _detect_web_search_intent(self, text: str) -> Optional[str]:
         q = text.lower()
-
         if any(t in q for t in self.HARD_WEB_TRIGGERS):
             return "hard"
-
         if any(q.startswith(t) for t in self.SOFT_WEB_TRIGGERS):
             return "soft"
-
         return None
+
+    # ---------------------------------------------------------
+    # Complexity scoring
+    # ---------------------------------------------------------
+    def _score_complexity(self, text: str) -> Dict[str, Any]:
+        t = text.strip()
+        tl = t.lower()
+
+        length = len(t)
+        lines = t.count("\n") + 1
+        has_math = bool(re.search(r"[0-9][0-9\+\-\*/x\^=\(\)]", t))
+        has_code = "```" in t or "def " in t or "class " in t or ("{" in t and "}" in t)
+
+        # FIXED: no unterminated string literal
+        has_latex = ("$" in t) or (r"\(" in t) or (r"\[" in t)
+
+
+        has_physics = any(
+            k in tl
+            for k in [
+                "photon rocket",
+                "relativistic rocket",
+                "lorentz",
+                "gamma",
+                "c^2",
+                "rest mass energy",
+                "energy–momentum",
+                "energy-momentum",
+                "schwarzschild",
+                "kerr",
+                "ergosphere",
+                "event horizon",
+                "geodesic",
+                "null geodesic",
+                "timelike",
+                "spacelike",
+                "general relativity",
+                "special relativity",
+            ]
+        )
+
+        score = 0
+        score += min(length // 80, 10)
+        score += 2 * int(has_math)
+        score += 2 * int(has_code)
+        score += 2 * int(has_latex)
+        score += 3 * int(has_physics)
+        score += min(lines // 4, 5)
+
+        gpu_batch_preferred = score >= 6
+
+        return {
+            "score": score,
+            "length": length,
+            "lines": lines,
+            "has_math": has_math,
+            "has_code": has_code,
+            "has_latex": has_latex,
+            "has_physics": has_physics,
+            "gpu_batch_preferred": gpu_batch_preferred,
+        }
 
     # ---------------------------------------------------------
     # Persona selection
@@ -158,7 +206,7 @@ class ConversationManager:
         return core_text.strip()
 
     # ---------------------------------------------------------
-    # Routing into cognitive subsystems
+    # Routing into subsystems
     # ---------------------------------------------------------
     def _route_to_subsystem(
         self,
@@ -167,27 +215,64 @@ class ConversationManager:
         session_id: Optional[str],
         user_id: Optional[str],
         force_web: Optional[str] = None,
+        persona_header: Optional[str] = None,
+        complexity: Optional[Dict[str, Any]] = None,
     ) -> str:
 
-        # -----------------------------------------------------
-        # Web search → orchestrator (RESTORED)
-        # -----------------------------------------------------
+        if complexity is None:
+            complexity = self._score_complexity(text)
+
+        route_axis_y = [
+            f"intent:{high_intent}",
+            f"web:{bool(force_web)}",
+            f"complexity:{complexity['score']}",
+        ]
+
+        # Persona injection
+        if persona_header and high_intent not in (
+            "strategy",
+            "simulate",
+            "debate",
+            "memory_write",
+        ):
+            text = f"{persona_header}\n\nUser: {text}"
+            route_axis_y.append("persona:applied")
+        else:
+            route_axis_y.append("persona:neutral")
+
+        # Web search
         if force_web:
-            return self.runtime.librarian_orchestrator.answer(
+            out = self.runtime.librarian_orchestrator.answer(
                 text,
-                metadata={"force_web_search": True, "web_strength": force_web},
+                metadata={
+                    "force_web_search": True,
+                    "web_strength": force_web,
+                    "complexity": complexity,
+                },
             )
+            self._last_3d = Conversation3D(
+                axis_x="route",
+                axis_y=route_axis_y + ["path:web"],
+                axis_z={"session_id": session_id, "user_id": user_id},
+            )
+            return out
 
         # Strategy
         if high_intent == "strategy":
             result = self.runtime.generate(
                 text=text,
                 intent="strategy",
-                metadata={"action": "plan_for_text"},
+                metadata={"action": "plan_for_text", "complexity": complexity},
                 user_id=user_id,
                 session_id=session_id,
             )
-            return self._extract_text_from_strategy(result)
+            out = self._extract_text_from_strategy(result)
+            self._last_3d = Conversation3D(
+                axis_x="route",
+                axis_y=route_axis_y + ["path:strategy"],
+                axis_z={"session_id": session_id, "user_id": user_id},
+            )
+            return out
 
         # Simulation
         if high_intent == "simulate":
@@ -197,11 +282,18 @@ class ConversationManager:
                     "action": "counterfactual",
                     "base": text,
                     "variation": f"best-case outcome of: {text}",
+                    "complexity": complexity,
                 },
                 user_id=user_id,
                 session_id=session_id,
             )
-            return self._extract_text_from_simulation(result)
+            out = self._extract_text_from_simulation(result)
+            self._last_3d = Conversation3D(
+                axis_x="route",
+                axis_y=route_axis_y + ["path:simulation"],
+                axis_z={"session_id": session_id, "user_id": user_id},
+            )
+            return out
 
         # Debate
         if high_intent == "debate":
@@ -211,19 +303,55 @@ class ConversationManager:
                 user_id=user_id,
                 session_id=session_id,
             )
-            return self._extract_text_from_debate(result)
+            out = self._extract_text_from_debate(result)
+            self._last_3d = Conversation3D(
+                axis_x="route",
+                axis_y=route_axis_y + ["path:debate"],
+                axis_z={"session_id": session_id, "user_id": user_id},
+            )
+            return out
 
         # Memory write
         if high_intent == "memory_write":
             self.runtime.memory.remember(text)
-            return "Got it — I’ll keep that in mind."
+            out = "Got it — I’ll keep that in mind."
+            self._last_3d = Conversation3D(
+                axis_x="route",
+                axis_y=route_axis_y + ["path:memory_write"],
+                axis_z={"session_id": session_id, "user_id": user_id},
+            )
+            return out
 
-        # Normal conversation → direct Router call
+        # Normal → Router
+        router_intent = "conversation"
+        router_metadata = {
+            "source": "conversation_manager",
+            "high_intent": high_intent,
+            "complexity": complexity,
+        }
+
+        if complexity["has_physics"]:
+            router_intent = "deep_physics"
+            router_metadata["force_deep_physics"] = True
+            route_axis_y.append("flag:physics")
+
+        if complexity["has_math"]:
+            router_metadata["math_heavy"] = True
+            route_axis_y.append("flag:math")
+
+        if complexity["has_code"]:
+            router_metadata["code_heavy"] = True
+            route_axis_y.append("flag:code")
+
+        if complexity["gpu_batch_preferred"]:
+            router_metadata["gpu_batch_preferred"] = True
+            route_axis_y.append("flag:gpu_batch")
+
         packet = Packet(
             text=text,
             data=None,
-            metadata={},
-            intent="conversation",
+            metadata=router_metadata,
+            intent=router_intent,
             model=None,
             compressed=False,
             return_compressed=False,
@@ -231,10 +359,27 @@ class ConversationManager:
             session_id=session_id,
             trace_id=str(uuid.uuid4()),
         )
+
         packet = packet.copy(query=text)
 
+        self._last_packet = packet
         result = self.runtime.router.run(packet)
-        return self._extract_text_generic(result)
+        self._last_router_result = result
+
+        out = self._extract_text_generic(result)
+
+        self._last_3d = Conversation3D(
+            axis_x="route",
+            axis_y=route_axis_y + ["path:router"],
+            axis_z={
+                "session_id": session_id,
+                "user_id": user_id,
+                "router_ok": isinstance(result, dict) and result.get("ok", True),
+                "complexity": complexity,
+            },
+        )
+
+        return out
 
     # ---------------------------------------------------------
     # Extractors
@@ -287,7 +432,7 @@ class ConversationManager:
         self,
         text: str,
         user_id: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
 
         start = time.time()
@@ -301,7 +446,15 @@ class ConversationManager:
         tone = self._detect_tone(text)
         high_intent = self._detect_high_level_intent(text)
         web_strength = self._detect_web_search_intent(text)
+        complexity = self._score_complexity(text)
 
+        if session["persona_header"] is None:
+            session["persona_header"] = self.persona.apply(
+                user_text=text,
+                metadata={"social_read": {"tone": tone}},
+            )
+
+        persona_header = session["persona_header"]
         persona = self._select_persona(tone, high_intent)
 
         core_reply = self._route_to_subsystem(
@@ -310,10 +463,43 @@ class ConversationManager:
             session_id=session_id,
             user_id=user_id,
             force_web=web_strength,
+            persona_header=persona_header,
+            complexity=complexity,
         )
 
         final_reply = self._wrap_response(core_reply, persona, tone)
         latency_ms = int((time.time() - start) * 1000)
+
+        run_growth_cycle(
+            base_dir=self.base_dir,
+            metadata={
+                "intent": high_intent,
+                "social_read": {"tone": tone},
+                "reasoning_context": {"complexity": complexity},
+                "model_role": "conversation",
+            },
+            reply=final_reply,
+        )
+
+        self._last_3d = Conversation3D(
+            axis_x="converse",
+            axis_y=[
+                f"tone:{tone}",
+                f"intent:{high_intent}",
+                f"web:{bool(web_strength)}",
+                f"persona:{persona}",
+                f"complexity:{complexity['score']}",
+            ],
+            axis_z={
+                "latency_ms": latency_ms,
+                "trace_id": trace_id,
+                "session_id": session_id or "default",
+                "user_id": user_id,
+                "input_len": len(text),
+                "reply_len": len(final_reply),
+                "complexity": complexity,
+            },
+        )
 
         return {
             "reply": final_reply,
@@ -325,5 +511,15 @@ class ConversationManager:
             "latency_ms": latency_ms,
         }
 
+    # ---------------------------------------------------------
+    # Introspection helpers
+    # ---------------------------------------------------------
+    def last_3d(self) -> Optional[Conversation3D]:
+        return self._last_3d
 
+    def last_packet(self) -> Optional[Packet]:
+        return self._last_packet
+
+    def last_router_result(self) -> Any:
+        return self._last_router_result
 

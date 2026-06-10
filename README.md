@@ -1,537 +1,189 @@
-\# SyntheticMind v8
-
-Advanced Cognitive AI Orchestrator \& Multi‑Subsystem Intelligence Framework  
-
-© 2026 Thomas Price — Licensed under GPLv3
-
-
-
-SyntheticMind v8 is a modular, research‑grade cognitive AI system designed for
-
-high‑accuracy reasoning, long‑context understanding, deterministic tool routing,
-
-and multi‑agent orchestration. The system integrates physics and math engines,
-
-a helper‑mesh execution layer, a world‑model subsystem, memory architecture,
-
-simulation engines, debate modules, strategy planners, and a benchmark‑optimized
-
-LLM orchestration pipeline.
-
-
-
-SyntheticMind v8 is released under the GNU General Public License v3.0 (GPLv3).
-
-
-
-\---
-
-
-
-\## Overview
-
-
-
-SyntheticMind v8 is built as a layered cognitive architecture:
-
-
-
-\- \*\*Meta‑Model Layer\*\* — routing, orchestration, self‑audit, and model‑book logic  
-
-\- \*\*Helper Mesh\*\* — parallel helper execution with priority scheduling  
-
-\- \*\*Physics \& Math Engines\*\* — deterministic solvers for symbolic and numeric tasks  
-
-\- \*\*Memory System\*\* — episodic, semantic, vector‑based, and healing subsystems  
-
-\- \*\*World Model\*\* — simulation, dynamics, extraction, and state management  
-
-\- \*\*Simulation Engine\*\* — counterfactual rollouts and scenario generation  
-
-\- \*\*Debate Engine\*\* — multi‑agent argumentation and scoring  
-
-\- \*\*Strategy Engine\*\* — goal management, planning, and tree‑based reasoning  
-
-\- \*\*TaskGraph Engine\*\* — graph‑structured execution and planning  
-
-\- \*\*Tool Learning\*\* — tool inference, generation, and testing  
-
-\- \*\*Vision Subsystem\*\* — client and processor modules  
-
-\- \*\*BitDrop Compression Kernel\*\* — high‑performance binary compression  
-
-\- \*\*Benchmark Suite\*\* — automated evaluation and diagnostics  
-
-\- \*\*Runtime\*\* — orchestrator, router, and model execution pipeline  
-
-
-
-This architecture enables SyntheticMind to operate as a full cognitive system
-
-rather than a single‑model wrapper.
-
-
-
-\---
-
-
-
-\## Repository Structure
-
-
-
-Below is a high‑level summary of the real project layout:
-
-
-
-syntheticmind-v8/
-
-│
-
-├── main.py
-
-├── README.md
-
-├── benchmark\_results/
-
-├── bitdrop\_core/
-
-│   ├── compressor, logs, tests, GPLv3 LICENSE, etc.
-
-│
-
-├── syntheticmind/
-
-│   ├── ai/
-
-│   │   ├── agents/
-
-│   │   ├── background/
-
-│   │   ├── benchmark/
-
-│   │   ├── bitdrop/
-
-│   │   ├── clients/
-
-│   │   ├── conversation/
-
-│   │   ├── debate/
-
-│   │   ├── goals/
-
-│   │   ├── index/
-
-│   │   ├── math/
-
-│   │   ├── memory/
-
-│   │   ├── memory\_heal/
-
-│   │   ├── meta/
-
-│   │   ├── metamodel/
-
-│   │   ├── context/
-
-│   │   ├── helpers/
-
-│   │   ├── models/
-
-│   │   ├── physics/
-
-│   │   ├── self\_refine/
-
-│   │   ├── server/
-
-│   │   ├── simulation/
-
-│   │   ├── skills/
-
-│   │   ├── strategy/
-
-│   │   ├── taskgraph/
-
-│   │   ├── tools/
-
-│   │   ├── tool\_learning/
-
-│   │   ├── vision/
-
-│   │   └── world\_model/
-
-│   │
-
-│   ├── metamodel/
-
-│   ├── runtime/
-
-│   └── ...
-
-│
-
-└── LICENSE
-
-git clone https://github.com/<your-username>/syntheticmind-v8.git
-
-cd syntheticmind-v8
-
-
-
-
-
-Install dependencies:
-
-
-
-pip install -r requirements.txt
-
-
-
-
-
-Run the orchestrator:
-
-
-
-python main.py
-
-
-
-
-
-\---
-
-
-
-\## Key Components
-
-
-
-\### \*\*1. Orchestrator\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/metamodel/librarian\_orchestrator.py
-
-
-
-
-
-Responsibilities:
-
-\- Query routing  
-
-\- Helper mesh coordination  
-
-\- Context packet construction  
-
-\- Safety + hallucination rewriting  
-
-\- Physics/math enrichment  
-
-\- Verification + robustness evaluation  
-
-\- Memory write‑back  
-
-
-
-\---
-
-
-
-\### \*\*2. Helper Mesh\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/helpers/
-
-
-
-
-
-Includes:
-
-\- ConversationHelper  
-
-\- ReasoningHelper  
-
-\- SummarizationHelper  
-
-\- SafetyHelper  
-
-\- HallucinationHelper  
-
-\- CodeHelper  
-
-\- LogicHelper  
-
-\- CompressionHelper  
-
-\- PhysicsHelper  
-
-\- MathHelper  
-
-\- DomainExpertRouter  
-
-\- Planner  
-
-\- Chain‑of‑Thought Helper  
-
-\- Verification Helper  
-
-
-
-\---
-
-
-
-\### \*\*3. Physics \& Math Engines\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/physics/
-
-syntheticmind/ai/math/
-
-
-
-
-
-Capabilities:
-
-\- Symbolic math  
-
-\- Numeric solvers  
-
-\- Kinematics  
-
-\- Energy/momentum  
-
-\- Circuit analysis  
-
-\- Matrix operations  
-
-\- Derivatives, integrals, equations  
-
-
-
-\---
-
-
-
-\### \*\*4. Memory System\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/memory/
-
-syntheticmind/ai/memory\_heal/
-
-
-
-
-
-Subsystems:
-
-\- Episodic memory  
-
-\- Semantic memory  
-
-\- Vector store  
-
-\- Memory healing  
-
-\- Memory manager  
-
-
-
-\---
-
-
-
-\### \*\*5. World Model\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/world\_model/
-
-
-
-
-
-Includes:
-
-\- World dynamics  
-
-\- Simulation manager  
-
-\- Extractor  
-
-\- State tracking  
-
-
-
-\---
-
-
-
-\### \*\*6. Simulation Engine\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/simulation/
-
-
-
-
-
-Supports:
-
-\- Counterfactual rollouts  
-
-\- Scenario generation  
-
-\- Multi‑step reasoning  
-
-
-
-\---
-
-
-
-\### \*\*7. BitDrop Compression Kernel\*\*
-
-Located in:
-
-
-
-bitdrop\_core/
-
-syntheticmind/ai/bitdrop/
-
-
-
-
-
-Provides:
-
-\- High‑performance binary compression  
-
-\- Kernel adapters  
-
-\- Benchmark suite  
-
-
-
-\---
-
-
-
-\### \*\*8. Benchmark Suite\*\*
-
-Located in:
-
-
-
-syntheticmind/ai/benchmark/
-
-benchmark\_results/
-
-
-
-
-
-Includes:
-
-\- Smart benchmark runner  
-
-\- Diagnostics  
-
-\- Performance logs  
-
-
-
-\---
-
-
-
-\## License
-
-
-
-This project is licensed under the \*\*GNU General Public License v3.0 (GPLv3)\*\*.  
-
-See the `LICENSE` file for the full text.
-
-
-
-\---
-
-
-
-\## Contributing
-
-
-
-See `CONTRIBUTING.md` for guidelines on pull requests, coding standards, and testing.
-
-
-
-\---
-
-
-
-\## Code of Conduct
-
-
-
-See `CODE\_OF\_CONDUCT.md` for community expectations.
-
-
-
-\---
-
-
-
-\## Citation
-
-
-
-If you use SyntheticMind v8 in academic work, please cite using the included `CITATION.cff`.
-
-
-
-\---
-
-
-
-\## Contact
-
-
-
-Maintainer: \*\*Thomas Price\*\*  
-
-Location: Crestwood, KY  
-
-Project: SyntheticMind v8 — Cognitive AI System
-
-
-<p align="center">
-  <img src="logo_syntheticmind_v8.svg" width="300">
-</p>
+SyntheticMind v8
+MAX‑3D Cognitive Runtime with BitDrop Compression, TurbVec Hybrid Backend, and Custom GPU Kernel
+
+Overview
+
+SyntheticMind v8 is a modular, multi‑axis cognitive engine designed for structured reasoning, multi‑pass refinement, and high‑efficiency compressed context processing.
+The system integrates a custom GPU kernel, TurbVec hybrid reasoning backend, and the BitDrop v3 compression engine to deliver a high‑performance, multi‑domain AI runtime.
+
+Core Capabilities
+
+MAX‑3D Reasoning Engine
+Multi‑axis reasoning pipeline:
+X‑axis: sequential reasoning
+Y‑axis: parallel helper mesh
+Z‑axis: depth‑stacked multi‑pass refinement
+Supports think(), think_batch(), think_3d(), and tensor‑style reasoning.
+
+BitDrop v3 Compression
+Byte‑level compression backbone with:
+Multi‑pass collapse
+Entropy‑aware routing
+Reversible 4‑byte collapse rules
+Pattern‑Tag‑Signature (PTS) mapping
+Bloom‑filter deduplication
+GPU‑accelerated collapse (4090‑optimized)
+Produces compact context packets for the ThinkingEngine.
+
+TurbVec Hybrid Backend
+Combines:
+Local deterministic reasoning model
+Remote LLM (Ollama or custom)
+Collapse‑expand pipeline
+Automatic fallback and routing
+Enables high‑speed local inference with optional remote augmentation.
+
+Custom GPU Kernel
+Integrated GPU‑accelerated BitDrop collapse engine.
+Optimized for NVIDIA RTX 4090.
+Supports vectorized collapse, warp‑level reductions, and fused operations.
+
+3D Helper Mesh
+Dynamically organized mesh of specialized helpers:
+PhysicsHelper3D
+MathHelper3D
+LogicHelper3D
+CodeHelper
+ReasoningHelperV2
+DomainExpertRouter
+ChainOfThoughtHelper
+VerificationHelper
+TaskPlanner
+WebSearchHelper
+Helpers operate in parallel across the Y‑axis and Z‑axis of the MAX‑3D tensor.
+
+Relativistic Physics Solver
+Integrated into PhysicsHelper3D.
+Handles:
+Photon rockets
+Energy‑momentum conservation
+Lorentz invariants
+Mass‑loss systems
+Gamma relations
+Symbolic and numeric reasoning
+Produces structured solver envelopes for the ThinkingEngine.
+
+ThinkingEngine
+Multi‑stage cognitive engine:
+Domain detection
+Helper selection
+Micro‑helper execution
+Structured reasoning
+Solver integration
+Final answer refinement
+Supports 1D, 2D, and 3D reasoning modes.
+
+Router
+Domain‑aware routing to:
+Deep physics
+Math
+Logic
+Code
+Hybrid backend
+Local reasoning model
+Ensures correct helper activation.
+
+Librarian Orchestrator
+Parallel reasoning subsystem for:
+Summarization
+Memory recall
+Compression‑aware context shaping
+Benchmark‑aware output formatting
+Uses ComposerModelV2 for structured generation.
+
+Memory and Storage
+MemoryManager for short‑term and long‑term recall.
+AIStore for persistent storage.
+MemoryHealer for automatic cleanup and repair.
+
+Agents and Planners
+PlannerAgent
+ExecutorAgent
+CriticAgent
+MemoryAgent
+VisionAgent
+ToolAgent
+TaskGraphPlanner
+TaskGraphExecutor
+StrategyManager
+DebateManager
+SimulationManager
+
+Execution Engine
+Unified interface for tool execution, agent coordination, and hybrid backend calls.
+
+Project Structure (Simplified)
+
+bitdrop_core/
+ai/
+metamodel/
+runtime.py
+router.py
+thinking_engine.py
+helpers/
+physics_helper.py
+math_helper.py
+logic_helper.py
+code_helper.py
+reasoning_helper.py
+specialized_helpers.py
+helper_mesh.py
+organizer_helper.py
+storage/
+memory/
+compression/
+bitdrop_compressor.py
+collapse_engine.py
+physics/
+physics_engine.py
+physics_agent.py
+math/
+math_engine.py
+math_agent.py
+gpu/
+bitdrop_gpu_kernel.cu
+turbvec_backend.cu
+
+Usage Examples
+
+Basic reasoning:
+runtime = MetaModelRuntime()
+out = runtime.thinking_engine.think("Explain Lorentz contraction.")
+print(out)
+
+3D reasoning:
+queries = [
+[
+["Define gamma", "Photon rocket"],
+["Relativistic momentum", "Energy conservation"]
+]
+]
+out = runtime.thinking_engine.think_3d(queries)
+print(out)
+
+Hybrid backend:
+out = runtime.hybrid_backend.generate("Summarize general relativity.")
+print(out)
+
+Physics solver:
+out = runtime.physics_helper.helper.rel_solver.solve("photon rocket emits half its rest mass energy")
+print(out)
+
+Design Principles
+
+Deterministic local reasoning with optional remote augmentation.
+
+Compression‑first architecture using BitDrop v3.
+
+Multi‑axis reasoning for higher‑order cognition.
+
+Modular helper mesh for domain specialization.
+
+GPU‑accelerated collapse and vectorized operations.
+
+Full transparency and structured reasoning envelopes.
+
+Backward‑compatible with 1D and 2D reasoning paths.
 
 
 

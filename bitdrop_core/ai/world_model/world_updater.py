@@ -1,16 +1,30 @@
-# syntheticmind/worldmodel/world_updater.py
-
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import time
 import traceback
 
 from .world_graph import WorldGraph
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class WUpd3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# WORLD UPDATER — MAX INGESTION + 3D‑MAX
+# ============================================================
+
 class WorldUpdater:
     """
-    Applies extracted entities/relations to the world graph.
+    Applies extracted entities/relations to the world graph (3D‑MAX Edition).
 
     Features:
         • structured envelopes
@@ -18,10 +32,12 @@ class WorldUpdater:
         • safe relation insertion
         • latency measurement
         • future-proof for LLM-based extraction
+        • 3D‑MAX telemetry
     """
 
     def __init__(self, graph: WorldGraph):
         self.graph = graph
+        self._last_3d: Optional[WUpd3D] = None
 
     # ------------------------------------------------------------
     # MAIN ENTRYPOINT
@@ -49,18 +65,15 @@ class WorldUpdater:
                 lookup = self.graph.find_by_label(label)
 
                 if lookup.get("ok") and lookup.get("count", 0) > 0:
-                    # Reuse existing node
                     node_id = lookup["node_ids"][0]
                     entity_ids[label] = node_id
                 else:
-                    # Create new node
                     result = self.graph.add_node(label)
                     if result.get("ok"):
                         node_id = result["node_id"]
                         entity_ids[label] = node_id
                         added_nodes.append(result)
                     else:
-                        # Node creation failed
                         entity_ids[label] = None
 
             # ----------------------------------------------------
@@ -73,7 +86,7 @@ class WorldUpdater:
                 if not src or not tgt:
                     skipped_edges.append({
                         "relation": (a, rel, b),
-                        "reason": "missing entity"
+                        "reason": "missing entity",
                     })
                     continue
 
@@ -84,15 +97,31 @@ class WorldUpdater:
                 else:
                     skipped_edges.append({
                         "relation": (a, rel, b),
-                        "reason": result.get("error", "edge creation failed")
+                        "reason": result.get("error", "edge creation failed"),
                     })
+
+            latency = int((time.time() - start) * 1000)
+
+            # ----------------------------------------------------
+            # 3D‑MAX TELEMETRY
+            # ----------------------------------------------------
+            self._last_3d = WUpd3D(
+                axis_x="update",
+                axis_y=[
+                    f"entities:{len(entity_ids)}",
+                    f"added_nodes:{len(added_nodes)}",
+                    f"added_edges:{len(added_edges)}",
+                    f"skipped_edges:{len(skipped_edges)}",
+                ],
+                axis_z={"latency_ms": latency},
+            )
 
             # ----------------------------------------------------
             # STRUCTURED ENVELOPE
             # ----------------------------------------------------
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "entities": entity_ids,
                 "added_nodes": added_nodes,
                 "added_edges": added_edges,
@@ -101,12 +130,17 @@ class WorldUpdater:
             }
 
         except Exception as e:
-            # ----------------------------------------------------
-            # FAILURE ENVELOPE
-            # ----------------------------------------------------
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = WUpd3D(
+                axis_x="update",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "entities": {},
                 "added_nodes": [],
                 "added_edges": [],
@@ -114,4 +148,5 @@ class WorldUpdater:
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
+
 

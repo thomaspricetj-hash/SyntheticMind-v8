@@ -3,8 +3,31 @@
 from __future__ import annotations
 import uuid
 import time
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class Goal3D:
+    """
+    3D structural view of a goal operation.
+
+    axis_x: high-level operation ("init", "status", "update", "serialize")
+    axis_y: structural decomposition (status, percent, tags)
+    axis_z: metadata (timestamps, priority, category, deadline, confidence)
+    """
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# ============================================================
+# GOAL (3D‑MAX)
+# ============================================================
 
 class Goal:
     """
@@ -15,6 +38,7 @@ class Goal:
         • history of updates
         • deadlines + lateness detection
         • confidence scoring
+    Now 3D‑MAX introspectable.
     """
 
     VALID_STATUSES = {"pending", "running", "blocked", "done", "error"}
@@ -29,25 +53,34 @@ class Goal:
         self.text = text.strip()
         self.metadata = metadata or {}
 
-        # Timestamps
         now = time.time()
         self.created_at = now
         self.updated_at = now
 
-        # Lifecycle
         self.status = "pending"
         self.progress: Dict[str, Any] = {}
         self.history: List[Dict[str, Any]] = []
 
-        # Optional metadata fields
-        self.priority = self.metadata.get("priority", "normal")  # low, normal, high, critical
+        self.priority = self.metadata.get("priority", "normal")
         self.tags = self.metadata.get("tags", [])
         self.category = self.metadata.get("category", None)
-        self.deadline = self.metadata.get("deadline", None)  # timestamp or None
+        self.deadline = self.metadata.get("deadline", None)
         self.confidence = float(self.metadata.get("confidence", 1.0))
 
-        # Archival flag (used by GoalStore)
         self.archived = False
+
+        self._last_3d: Optional[Goal3D] = Goal3D(
+            axis_x="init",
+            axis_y=[f"status:{self.status}", f"priority:{self.priority}"],
+            axis_z={
+                "goal_id": self.id,
+                "created_at": self.created_at,
+                "tags": list(self.tags),
+                "category": self.category,
+                "deadline": self.deadline,
+                "confidence": self.confidence,
+            },
+        )
 
     # ------------------------------------------------------------
     # INTERNAL UTILITIES
@@ -73,6 +106,18 @@ class Goal:
         self._record_history({"status_from": old, "status_to": status})
         self._touch()
 
+        self._last_3d = Goal3D(
+            axis_x="status",
+            axis_y=[f"from:{old}", f"to:{status}"],
+            axis_z={
+                "goal_id": self.id,
+                "updated_at": self.updated_at,
+                "percent": self.percent(),
+                "deadline": self.deadline,
+                "is_late": self.is_late(),
+            },
+        )
+
     def mark_running(self):
         self.set_status("running")
 
@@ -84,28 +129,54 @@ class Goal:
         self.progress["blocked_reason"] = reason
         self._touch()
 
+        self._last_3d = Goal3D(
+            axis_x="status",
+            axis_y=["blocked"],
+            axis_z={
+                "reason": reason,
+                "goal_id": self.id,
+                "updated_at": self.updated_at,
+            },
+        )
+
     def mark_error(self, error: str):
         self.set_status("error")
         self.progress["error"] = error
         self._touch()
+
+        self._last_3d = Goal3D(
+            axis_x="status",
+            axis_y=["error"],
+            axis_z={
+                "error": error,
+                "goal_id": self.id,
+                "updated_at": self.updated_at,
+            },
+        )
 
     # ------------------------------------------------------------
     # PROGRESS TRACKING
     # ------------------------------------------------------------
 
     def update(self, progress: Dict[str, Any]):
-        """
-        Update progress fields.
-        Example:
-            goal.update({"percent": 40, "step": "collecting data"})
-        """
         old = dict(self.progress)
         self.progress.update(progress)
         self._record_history({"progress_from": old, "progress_to": dict(self.progress)})
         self._touch()
 
+        self._last_3d = Goal3D(
+            axis_x="update",
+            axis_y=[f"status:{self.status}", f"percent:{self.percent()}"],
+            axis_z={
+                "goal_id": self.id,
+                "updated_at": self.updated_at,
+                "progress_keys": list(progress.keys()),
+                "deadline": self.deadline,
+                "is_late": self.is_late(),
+            },
+        )
+
     def percent(self) -> float:
-        """Return progress percent if available."""
         return float(self.progress.get("percent", 0.0))
 
     # ------------------------------------------------------------
@@ -113,13 +184,11 @@ class Goal:
     # ------------------------------------------------------------
 
     def is_late(self) -> bool:
-        """Return True if the goal has a deadline and is past it."""
         if not self.deadline:
             return False
         return time.time() > self.deadline and self.status != "done"
 
     def time_remaining(self) -> Optional[float]:
-        """Seconds until deadline, or None if no deadline."""
         if not self.deadline:
             return None
         return self.deadline - time.time()
@@ -129,8 +198,7 @@ class Goal:
     # ------------------------------------------------------------
 
     def to_dict(self) -> Dict[str, Any]:
-        """Full serialization for GoalStore."""
-        return {
+        out = {
             "text": self.text,
             "metadata": self.metadata,
             "status": self.status,
@@ -140,4 +208,19 @@ class Goal:
             "archived": self.archived,
             "history": self.history,
         }
+
+        self._last_3d = Goal3D(
+            axis_x="serialize",
+            axis_y=[f"status:{self.status}", f"percent:{self.percent()}"],
+            axis_z={
+                "goal_id": self.id,
+                "history_len": len(self.history),
+                "tags": list(self.tags),
+                "priority": self.priority,
+                "category": self.category,
+            },
+        )
+
+        return out
+
 

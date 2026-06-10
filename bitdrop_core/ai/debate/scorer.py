@@ -1,9 +1,32 @@
 # ai/debate/scorer.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import math
 
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class DebateScore3D:
+    """
+    3D structural view of a scoring pass.
+
+    axis_x: high-level operation ("score")
+    axis_y: structural decomposition (arg_count, prompt_present)
+    axis_z: metadata (avg_len, avg_depth, avg_relevance, avg_evidence)
+    """
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+# ============================================================
+# DEBATE SCORER (3D‑MAX)
+# ============================================================
 
 class DebateScorer:
     """
@@ -16,56 +39,44 @@ class DebateScorer:
         • evidence density
         • novelty
         • length (minor factor)
+    Now 3D‑MAX introspectable.
     """
+
+    def __init__(self) -> None:
+        self._last_3d: Optional[DebateScore3D] = None
 
     def score(self, round_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         arguments = round_data.get("arguments", [])
         prompt = round_data.get("prompt", "")
 
-        scored = []
+        scored: List[Dict[str, Any]] = []
         seen_contents = set()
+
+        depths: List[float] = []
+        relevances: List[float] = []
+        evidences: List[float] = []
+        lengths: List[int] = []
 
         for arg in arguments:
             content = arg.get("content", "")
             agent = arg.get("agent", "unknown")
-
-            # ------------------------------------------------------------
-            # FEATURE EXTRACTION
-            # ------------------------------------------------------------
 
             length = len(content)
             sentences = content.count(".") + content.count("!") + content.count("?")
             commas = content.count(",")
             paragraphs = content.count("\n")
 
-            # Depth: more sentences & structure → deeper reasoning
             depth = sentences * 2 + paragraphs * 3 + commas * 0.5
-
-            # Clarity: penalize rambling or extremely long sentences
             clarity = max(0, 50 - (length / 20))
-
-            # Relevance: overlap with prompt keywords
             relevance = self._keyword_overlap(prompt, content)
-
-            # Evidence: presence of numbers, citations, examples
             evidence = (
                 content.count("because") * 2 +
                 content.count("for example") * 3 +
                 sum(c.isdigit() for c in content) * 0.5
             )
-
-            # Novelty: penalize repeated arguments
             novelty = 10 if content not in seen_contents else -10
             seen_contents.add(content)
-
-            # Hallucination penalty: crude but effective
-            hallucination_penalty = (
-                -15 if "as an AI" in content.lower() else 0
-            )
-
-            # ------------------------------------------------------------
-            # FINAL SCORE
-            # ------------------------------------------------------------
+            hallucination_penalty = -15 if "as an ai" in content.lower() else 0
 
             score = (
                 depth * 1.5 +
@@ -74,8 +85,13 @@ class DebateScorer:
                 evidence * 1.8 +
                 novelty +
                 hallucination_penalty +
-                math.log(length + 1)  # small length bonus
+                math.log(length + 1)
             )
+
+            depths.append(depth)
+            relevances.append(relevance)
+            evidences.append(evidence)
+            lengths.append(length)
 
             scored.append({
                 "agent": agent,
@@ -92,8 +108,28 @@ class DebateScorer:
                 }
             })
 
-        # Sort descending by score
         scored.sort(key=lambda x: x["score"], reverse=True)
+
+        arg_count = len(arguments)
+        avg_len = sum(lengths) / arg_count if arg_count else 0.0
+        avg_depth = sum(depths) / arg_count if arg_count else 0.0
+        avg_rel = sum(relevances) / arg_count if arg_count else 0.0
+        avg_evid = sum(evidences) / arg_count if arg_count else 0.0
+
+        self._last_3d = DebateScore3D(
+            axis_x="score",
+            axis_y=[
+                f"args:{arg_count}",
+                f"prompt_present:{bool(prompt)}",
+            ],
+            axis_z={
+                "avg_length": float(avg_len),
+                "avg_depth": float(avg_depth),
+                "avg_relevance": float(avg_rel),
+                "avg_evidence": float(avg_evid),
+            },
+        )
+
         return scored
 
     # ------------------------------------------------------------

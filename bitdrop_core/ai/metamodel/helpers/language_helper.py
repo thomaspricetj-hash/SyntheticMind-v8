@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, List
 import unicodedata
 import re
 import zlib
@@ -61,7 +61,6 @@ class MicroParagraphNormalizer:
     __slots__ = ()
     @staticmethod
     def normalize(text: str) -> str:
-        # Preserve paragraph boundaries but normalize inside each
         parts = text.split("\n")
         cleaned = []
         for p in parts:
@@ -72,7 +71,7 @@ class MicroParagraphNormalizer:
 
 
 # ------------------------------------------------------------
-# MAIN HELPER
+# MAIN HELPER (1D)
 # ------------------------------------------------------------
 class LanguageHelper:
     """
@@ -82,33 +81,16 @@ class LanguageHelper:
     def __init__(self) -> None:
         self.cache: Dict[int, Dict[str, Any]] = {}
 
-    # ------------------------------------------------------------
-    # INTERNAL: classify query type
-    # ------------------------------------------------------------
     def _classify_query(self, text: str) -> str:
         return MicroQueryClassifier.classify(text)
 
-    # ------------------------------------------------------------
-    # INTERNAL: normalize text
-    # ------------------------------------------------------------
     def _normalize(self, text: str) -> str:
-        # Unicode NFC normalization
         cleaned = unicodedata.normalize("NFC", text)
-
-        # Remove zero-width characters
         cleaned = MicroRegex.ZERO_WIDTH.sub("", cleaned)
-
-        # Normalize paragraphs
         cleaned = MicroParagraphNormalizer.normalize(cleaned)
-
-        # Collapse repeated punctuation
         cleaned = re.sub(r"([!?.,])\1{1,}", r"\1", cleaned)
-
         return cleaned
 
-    # ------------------------------------------------------------
-    # INTERNAL: extract linguistic structure
-    # ------------------------------------------------------------
     def _extract_structure(self, text: str) -> Dict[str, Any]:
         tokens = text.split()
         sentences = [s.strip() for s in MicroRegex.SENTENCES.split(text) if s.strip()]
@@ -121,9 +103,6 @@ class LanguageHelper:
             "paragraphs": text.count("\n") + 1,
         }
 
-    # ------------------------------------------------------------
-    # PUBLIC: main entrypoint
-    # ------------------------------------------------------------
     def process(self, query: str) -> Dict[str, Any]:
         try:
             query = (query or "").strip()
@@ -135,24 +114,16 @@ class LanguageHelper:
                     "structure": {},
                 }
 
-            # Micro: normalize whitespace
             query = MicroStringStripper.clean(query)
-
-            # Micro: limit size for speed
             query = MicroTokenLimiter.limit(query)
 
-            # Micro: fast dedupe
             h = MicroFastHash.h(query)
-            if h in self.cache:
-                return self.cache[h]
+            cached = self.cache.get(h)
+            if cached is not None:
+                return cached
 
-            # Normalize
             cleaned = self._normalize(query)
-
-            # Classify
             qtype = self._classify_query(cleaned)
-
-            # Structure
             structure = self._extract_structure(cleaned)
 
             envelope = {
@@ -162,7 +133,6 @@ class LanguageHelper:
                 "structure": structure,
             }
 
-            # Cache
             self.cache[h] = envelope
             return envelope
 
@@ -176,3 +146,64 @@ class LanguageHelper:
             }
 
 
+# ------------------------------------------------------------
+# 3D LANGUAGE HELPER (MAXED, BACKWARD-COMPATIBLE)
+# ------------------------------------------------------------
+class LanguageHelper3D:
+    """
+    3D LanguageHelper:
+        • Reuses LanguageHelper core logic
+        • Adds 3D grids of queries: [D][H][W]
+        • Per-cell normalization + classification
+        • Deterministic 3D envelopes
+        • Cache amplification across 3D space
+    """
+
+    def __init__(self) -> None:
+        self.helper = LanguageHelper()
+
+    def process_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+    ) -> List[List[List[Dict[str, Any]]]]:
+        """
+        queries_3d[d][h][w] = query string
+        returns envelopes_3d[d][h][w] = LanguageHelper envelope
+        """
+        depth = len(queries_3d)
+        out: List[List[List[Dict[str, Any]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Dict[str, Any]]] = []
+            for row in plane:
+                row_out: List[Dict[str, Any]] = []
+                for q in row:
+                    row_out.append(self.helper.process(q))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    def classify_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+    ) -> List[List[List[str]]]:
+        """
+        Convenience: return only query_type per cell.
+        """
+        envelopes_3d = self.process_3d(queries_3d)
+        depth = len(envelopes_3d)
+        out: List[List[List[str]]] = []
+
+        for d in range(depth):
+            plane = envelopes_3d[d]
+            plane_out: List[List[str]] = []
+            for row in plane:
+                row_out: List[str] = []
+                for env in row:
+                    row_out.append(env.get("query_type", "unknown"))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out

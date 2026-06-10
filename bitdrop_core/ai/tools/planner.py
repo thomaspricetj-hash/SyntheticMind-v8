@@ -1,27 +1,45 @@
 # syntheticmind/tools/planner.py
 
 from __future__ import annotations
-from typing import Dict, Any
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
 import time
 import traceback
 
 from ..metamodel.ollama_client import OllamaClient
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Planner3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# PLANNER — MAX COMMAND + 3D‑MAX
+# ============================================================
+
 class Planner:
     """
-    Converts natural language into tool commands.
+    Converts natural language into tool commands (3D‑MAX Edition).
 
     Produces:
         • structured envelopes
         • validated tool commands
         • deterministic formatting
         • safe fallback behavior
+        • 3D‑MAX telemetry
     """
 
     def __init__(self):
         self.llm = OllamaClient()
         self.model = "qwen2.5:1.5b"
+        self._last_3d: Optional[Planner3D] = None
 
     # ------------------------------------------------------------
     # INTERNAL: NORMALIZE COMMAND
@@ -32,6 +50,11 @@ class Planner:
         """
 
         if not isinstance(raw, str):
+            self._last_3d = Planner3D(
+                axis_x="_normalize",
+                axis_y=["non_string"],
+                axis_z={"ok": False},
+            )
             return ""
 
         cleaned = raw.strip()
@@ -39,6 +62,12 @@ class Planner:
         # Remove accidental quoting
         if cleaned.startswith(("'", '"')) and cleaned.endswith(("'", '"')):
             cleaned = cleaned[1:-1].strip()
+
+        self._last_3d = Planner3D(
+            axis_x="_normalize",
+            axis_y=[f"len:{len(cleaned)}"],
+            axis_z={"ok": True},
+        )
 
         return cleaned
 
@@ -77,18 +106,38 @@ class Planner:
             if not command:
                 raise ValueError("LLM returned empty command")
 
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = Planner3D(
+                axis_x="plan",
+                axis_y=[f"instr_len:{len(instruction)}"],
+                axis_z={
+                    "latency_ms": latency,
+                    "command_len": len(command),
+                    "ok": True,
+                },
+            )
+
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "instruction": instruction,
                 "command": command,
                 "error": None,
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = Planner3D(
+                axis_x="plan",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "instruction": instruction,
                 "command": None,
                 "error": str(e),

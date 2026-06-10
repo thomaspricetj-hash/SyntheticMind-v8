@@ -1,14 +1,31 @@
 # syntheticmind/strategy/strategy_analyzer.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Strategy3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# STRATEGY ANALYZER — MAX SPEED + 3D‑MAX
+# ============================================================
+
 class StrategyAnalyzer:
     """
-    Scores and summarizes candidate plans.
+    Scores and summarizes candidate plans (3D‑MAX Edition).
+
     Provides:
         • structured envelopes
         • multi-factor scoring
@@ -16,47 +33,58 @@ class StrategyAnalyzer:
         • risk weighting
         • feasibility heuristics
         • safe execution
+        • 3D‑MAX introspection
         • future-proof hooks for TaskGraphPlanner
     """
+
+    def __init__(self):
+        self._last_3d: Optional[Strategy3D] = None
 
     # ------------------------------------------------------------
     # MAIN ANALYSIS ENTRYPOINT
     # ------------------------------------------------------------
     def analyze(self, plans: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Returns a structured analysis envelope:
-            {
-                "ok": bool,
-                "latency_ms": int,
-                "candidates": [...],
-                "best": {...},
-                "error": None
-            }
-        """
-
         start = time.time()
-        scored = []
+        scored: List[Dict[str, Any]] = []
 
         try:
             for p in plans:
                 scored.append(self._score_plan(p))
 
-            # Sort by score descending
             scored.sort(key=lambda x: x["score"], reverse=True)
             best = scored[0] if scored else None
 
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = Strategy3D(
+                axis_x="analyze",
+                axis_y=[f"plans:{len(plans)}"],
+                axis_z={
+                    "latency_ms": latency,
+                    "best_score": best["score"] if best else None,
+                },
+            )
+
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "candidates": scored,
                 "best": best,
                 "error": None,
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = Strategy3D(
+                axis_x="analyze",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "candidates": scored,
                 "best": None,
                 "error": str(e),
@@ -96,6 +124,19 @@ class StrategyAnalyzer:
         score = 1.0 - complexity_penalty - risk_penalty + feasibility_bonus + structure_bonus
         score = max(0.0, min(1.0, score))
 
+        # 3D‑MAX telemetry for per‑plan scoring
+        self._last_3d = Strategy3D(
+            axis_x="_score_plan",
+            axis_y=[f"steps:{len(steps)}", f"risk:{risk}"],
+            axis_z={
+                "score": score,
+                "complexity_penalty": complexity_penalty,
+                "risk_penalty": risk_penalty,
+                "feasibility_bonus": feasibility_bonus,
+                "structure_bonus": structure_bonus,
+            },
+        )
+
         return {
             "plan": plan,
             "score": score,
@@ -106,3 +147,4 @@ class StrategyAnalyzer:
                 "structure_bonus": structure_bonus,
             },
         }
+

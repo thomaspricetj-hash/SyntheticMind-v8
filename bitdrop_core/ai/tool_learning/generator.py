@@ -1,21 +1,41 @@
 # syntheticmind/tools/tool_generator.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import keyword
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class ToolGen3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# TOOL GENERATOR — MAX CODEGEN + 3D‑MAX
+# ============================================================
+
 class ToolGenerator:
     """
-    Generates Python tool wrappers from inferred signatures.
+    Generates Python tool wrappers from inferred signatures (3D‑MAX Edition).
     Produces:
         • deterministic, clean Python code
         • validated identifiers
         • structured envelopes
         • docstrings
         • type hints
+        • 3D‑MAX telemetry
     """
+
+    def __init__(self):
+        self._last_3d: Optional[ToolGen3D] = None
 
     # ------------------------------------------------------------
     # VALIDATION
@@ -46,6 +66,7 @@ class ToolGenerator:
             name = signature["name"]
             params = signature.get("params", [])
 
+            # Validation
             self._validate_name(name)
             self._validate_params(params)
 
@@ -68,6 +89,16 @@ class ToolGenerator:
                 f"    }}\n"
             )
 
+            # 3D‑MAX telemetry
+            self._last_3d = ToolGen3D(
+                axis_x="generate",
+                axis_y=[f"name:{name}", f"params:{len(params)}"],
+                axis_z={
+                    "ok": True,
+                    "code_len": len(code),
+                },
+            )
+
             return {
                 "ok": True,
                 "code": code,
@@ -75,10 +106,17 @@ class ToolGenerator:
             }
 
         except Exception as e:
+            self._last_3d = ToolGen3D(
+                axis_x="generate",
+                axis_y=["exception"],
+                axis_z={"error": str(e)},
+            )
+
             return {
                 "ok": False,
                 "code": "",
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
+
 

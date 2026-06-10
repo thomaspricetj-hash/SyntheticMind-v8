@@ -1,48 +1,45 @@
-# syntheticmind/metamodel/simulation_engine.py
-
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Dict, Any, List
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class Simulation3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# SIMULATION ENGINE — MAX SPEED + 3D‑MAX
+# ============================================================
+
 class SimulationEngine:
     """
     Core simulation engine for counterfactual reasoning and multi-step rollouts.
-    Provides:
+    3D‑MAX Edition:
         • structured envelopes
         • latency measurement
         • safe execution
         • packet-aware runtime calls
         • future-proof simulation hooks
+        • 3D‑MAX introspection for every simulation cycle
     """
 
     def __init__(self, runtime: "MetaModelRuntime"):
         self.runtime = runtime
+        self._last_3d: Simulation3D | None = None
 
     # ------------------------------------------------------------
     # MULTI-STEP SIMULATION
     # ------------------------------------------------------------
     def simulate_steps(self, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Each step:
-            {
-                "text": str,
-                "intent": str,
-                "metadata": dict,
-                "compressed": bool,
-                "return_compressed": bool
-            }
-
-        Returns a structured simulation envelope:
-            {
-                "ok": bool,
-                "latency_ms": int,
-                "steps": [...],
-                "error": str | None
-            }
-        """
-
         start = time.time()
         results = []
 
@@ -74,18 +71,37 @@ class SimulationEngine:
                     }
                 )
 
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = Simulation3D(
+                axis_x="simulate_steps",
+                axis_y=[f"steps:{len(steps)}"],
+                axis_z={
+                    "latency_ms": latency,
+                    "ok": True,
+                    "compressed_count": sum(1 for s in steps if s.get("compressed")),
+                },
+            )
+
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "steps": results,
                 "error": None,
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = Simulation3D(
+                axis_x="simulate_steps",
+                axis_y=[f"steps:{len(steps)}"],
+                axis_z={"latency_ms": latency, "ok": False, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "steps": results,
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
+

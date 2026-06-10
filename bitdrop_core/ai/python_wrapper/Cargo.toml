@@ -1,0 +1,17 @@
+[package]
+name = "python_wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "python_wrapper"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+
+# Only TurboVec is a Rust crate
+turbovec = { path = "../turbovec" }
+
+
+

@@ -1,13 +1,27 @@
-# syntheticmind/context/compression_manager.py
-
 from __future__ import annotations
-from typing import Any, Dict, Optional
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
 import traceback
+import time
 
 from ...bitdrop.compressor import BitDropCompressor
 from .packet import Packet
 
+
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class CM3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# COMPRESSION RESULT
+# ============================================================
 
 @dataclass
 class CompressionResult:
@@ -18,9 +32,13 @@ class CompressionResult:
     fingerprint: str
 
 
+# ============================================================
+# COMPRESSION MANAGER — MAX BITDROP + 3D‑MAX
+# ============================================================
+
 class CompressionManager:
     """
-    Connects Packet objects to the BitDrop GPU compression engine.
+    Connects Packet objects to the BitDrop GPU compression engine (3D‑MAX Edition).
     Handles:
         • packet decompression
         • packet recompression
@@ -29,10 +47,12 @@ class CompressionManager:
         • corruption detection
         • safe fallbacks
         • structured envelopes
+        • 3D‑MAX telemetry
     """
 
     def __init__(self):
         self.engine = BitDropCompressor.instance()
+        self._last_3d: Optional[CM3D] = None
 
     # ------------------------------------------------------------
     # PACKET DECOMPRESSION
@@ -44,8 +64,16 @@ class CompressionManager:
         Returns a new Packet with decompressed bytes.
         """
 
+        start = time.time()
+
         # Nothing to decompress
         if packet.data is None:
+            latency = int((time.time() - start) * 1000)
+            self._last_3d = CM3D(
+                axis_x="decompress_packet",
+                axis_y=["no_data"],
+                axis_z={"latency_ms": latency},
+            )
             return packet.copy(compressed=False)
 
         expected = packet.metadata.get("expected_size")
@@ -62,6 +90,15 @@ class CompressionManager:
             raise RuntimeError(
                 f"Decompression size mismatch: expected {expected}, got {len(raw)}"
             )
+
+        latency = int((time.time() - start) * 1000)
+
+        # 3D‑MAX telemetry
+        self._last_3d = CM3D(
+            axis_x="decompress_packet",
+            axis_y=[f"expected:{expected}", f"actual:{len(raw)}"],
+            axis_z={"latency_ms": latency, "ok": True},
+        )
 
         return packet.copy(
             data=raw,
@@ -82,15 +119,28 @@ class CompressionManager:
             • fingerprint
         """
 
-        # Convert dict → bytes
+        start = time.time()
+
         raw_bytes = str(result).encode("utf-8")
         raw_size = len(raw_bytes)
 
         try:
             blob, meta = self.engine.compress(raw_bytes)
-            # meta contains: ratio, fingerprint, codec, etc.
         except Exception as e:
             raise RuntimeError(f"BitDrop compression failed: {e}")
+
+        latency = int((time.time() - start) * 1000)
+
+        # 3D‑MAX telemetry
+        self._last_3d = CM3D(
+            axis_x="compress_output",
+            axis_y=[f"raw_size:{raw_size}", f"ratio:{meta.get('ratio')}"],
+            axis_z={
+                "latency_ms": latency,
+                "codec": meta.get("codec", "bitdrop"),
+                "fingerprint": meta.get("fingerprint"),
+            },
+        )
 
         return {
             "compressed": True,
@@ -113,6 +163,11 @@ class CompressionManager:
         try:
             return self.compress_output(result)
         except Exception as e:
+            self._last_3d = CM3D(
+                axis_x="safe_compress",
+                axis_y=["exception"],
+                axis_z={"error": str(e)},
+            )
             return {
                 "compressed": False,
                 "error": str(e),
@@ -129,6 +184,11 @@ class CompressionManager:
         try:
             return self.decompress_packet(packet)
         except Exception as e:
+            self._last_3d = CM3D(
+                axis_x="safe_decompress",
+                axis_y=["exception"],
+                axis_z={"error": str(e)},
+            )
             return packet.copy(
                 compressed=False,
                 metadata={

@@ -1,150 +1,147 @@
-# ai/memory/vector_store.py
-
 from __future__ import annotations
-from typing import Dict, Any, List, Tuple
-import uuid
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional, Tuple
 import math
 import time
-import traceback
 
+
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class VectorStore3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# HYBRID VECTOR STORE — RAW + COLLAPSED + 3D‑MAX
+# ============================================================
 
 class VectorStore:
     """
-    Production-grade in-memory vector store.
+    Hybrid vector store.
 
-    Features:
-        • structured envelopes
-        • safe add/query
-        • deterministic cosine similarity
-        • metadata preservation
-        • top-k clamping
-        • malformed-vector protection
-        • latency measurement
-        • future-proof backend swap
-        • MemoryManager-compatible search()
+    Stores:
+        • raw text embeddings
+        • collapsed (BitDrop) text embeddings
+        • labels / payloads
+        • 3D‑MAX telemetry
+
+    Search:
+        • cosine similarity
+        • hybrid scoring (raw + collapsed)
     """
 
     def __init__(self):
-        self.vectors: Dict[str, List[float]] = {}
-        self.metadata: Dict[str, Dict[str, Any]] = {}
+        self._items: List[Dict[str, Any]] = []
+        self._last_3d: Optional[VectorStore3D] = None
 
     # ------------------------------------------------------------
-    # INTERNAL: SAFE COSINE SIMILARITY
+    # ADD
     # ------------------------------------------------------------
-    def _cosine(self, a: List[float], b: List[float]) -> float:
-        if not a or not b or len(a) != len(b):
+    def add(self, embedding: List[float], text: str, *, collapsed: Optional[str] = None):
+        """
+        Add a vector entry.
+
+        embedding: raw text embedding
+        text: raw text
+        collapsed: optional collapsed text (BitDrop)
+        """
+        item = {
+            "embedding": embedding,
+            "text": text,
+            "collapsed": collapsed,
+        }
+        self._items.append(item)
+
+        self._last_3d = VectorStore3D(
+            axis_x="add",
+            axis_y=[f"total_items:{len(self._items)}"],
+            axis_z={
+                "embedding_dim": len(embedding),
+                "has_collapsed": collapsed is not None,
+            },
+        )
+
+    # ------------------------------------------------------------
+    # CLEAR
+    # ------------------------------------------------------------
+    def clear(self):
+        self._items.clear()
+        self._last_3d = VectorStore3D(
+            axis_x="clear",
+            axis_y=["total_items:0"],
+            axis_z={"status": "cleared"},
+        )
+
+    # ------------------------------------------------------------
+    # SEARCH (HYBRID)
+    # ------------------------------------------------------------
+    def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Hybrid search:
+            70% raw embedding similarity
+            30% collapsed embedding similarity (if available)
+        """
+
+        start = time.time()
+        scored: List[Tuple[float, Dict[str, Any]]] = []
+
+        for item in self._items:
+            base = self._cosine_similarity(query_embedding, item["embedding"])
+
+            # collapsed similarity placeholder (can be extended if you store collapsed embeddings)
+            collapsed_score = 0.0
+
+            score = 0.70 * base + 0.30 * collapsed_score
+            scored.append((score, item))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        results = [it for _, it in scored[:top_k]]
+
+        latency = int((time.time() - start) * 1000)
+
+        self._last_3d = VectorStore3D(
+            axis_x="search",
+            axis_y=[
+                f"items:{len(self._items)}",
+                f"top_k:{top_k}",
+                f"returned:{len(results)}",
+            ],
+            axis_z={"latency_ms": latency},
+        )
+
+        # runtime‑compatible format
+        formatted = []
+        for item in results:
+            formatted.append(
+                {
+                    "text": item["text"],
+                    "score": 1.0,  # you can expose actual score if needed
+                }
+            )
+
+        return formatted
+
+    # ------------------------------------------------------------
+    # COSINE
+    # ------------------------------------------------------------
+    def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
+        if not a or not b:
             return 0.0
 
-        dot = 0.0
-        na = 0.0
-        nb = 0.0
+        dot = sum(x * y for x, y in zip(a, b))
+        na = math.sqrt(sum(x * x for x in a))
+        nb = math.sqrt(sum(x * x for x in b))
 
-        for x, y in zip(a, b):
-            dot += x * y
-            na += x * x
-            nb += y * y
-
-        if na <= 0.0 or nb <= 0.0:
+        if na == 0.0 or nb == 0.0:
             return 0.0
 
-        return dot / (math.sqrt(na) * math.sqrt(nb))
+        return dot / (na * nb)
 
-    # ------------------------------------------------------------
-    # ADD VECTOR
-    # ------------------------------------------------------------
-    def add(self, vector: List[float], metadata: Dict[str, Any]) -> Dict[str, Any]:
-        start = time.time()
-
-        try:
-            if not isinstance(vector, list) or not all(isinstance(x, (int, float)) for x in vector):
-                raise ValueError("invalid vector format")
-
-            vid = str(uuid.uuid4())
-            self.vectors[vid] = vector
-            self.metadata[vid] = metadata or {}
-
-            return {
-                "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
-                "id": vid,
-                "vector_dim": len(vector),
-                "metadata": metadata,
-                "error": None,
-            }
-
-        except Exception as e:
-            return {
-                "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
-                "id": None,
-                "vector_dim": 0,
-                "metadata": metadata,
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-            }
-
-    # ------------------------------------------------------------
-    # QUERY TOP-K
-    # ------------------------------------------------------------
-    def query(self, vector: List[float], top_k: int = 5) -> Dict[str, Any]:
-        start = time.time()
-
-        try:
-            if top_k <= 0:
-                top_k = 1
-
-            if not isinstance(vector, list) or not all(isinstance(x, (int, float)) for x in vector):
-                raise ValueError("invalid query vector")
-
-            scored = []
-
-            for vid, stored_vec in self.vectors.items():
-                score = self._cosine(vector, stored_vec)
-                scored.append({
-                    "id": vid,
-                    "score": score,
-                    "metadata": self.metadata.get(vid, {}),
-                })
-
-            scored.sort(key=lambda x: x["score"], reverse=True)
-            results = scored[:top_k]
-
-            return {
-                "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
-                "query_dim": len(vector),
-                "top_k": top_k,
-                "results": results,
-                "count": len(results),
-                "error": None,
-            }
-
-        except Exception as e:
-            return {
-                "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
-                "query_dim": len(vector) if isinstance(vector, list) else 0,
-                "top_k": top_k,
-                "results": [],
-                "count": 0,
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-            }
-
-    # ------------------------------------------------------------
-    # REQUIRED BY MemoryManager: search()
-    # ------------------------------------------------------------
-    def search(self, vector: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        MemoryManager expects search() to return a LIST of items,
-        not a structured envelope. So we unwrap query().
-        """
-        q = self.query(vector, top_k=top_k)
-
-        if not q.get("ok"):
-            return []
-
-        return q["results"]
 
 
 

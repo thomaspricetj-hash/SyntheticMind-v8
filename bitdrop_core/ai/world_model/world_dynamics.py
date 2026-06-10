@@ -1,21 +1,38 @@
 # syntheticmind/worldmodel/world_model_dynamics.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class WMDyn3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# WORLD MODEL DYNAMICS — MAX CAUSALITY + 3D‑MAX
+# ============================================================
+
 class WorldModelDynamics:
     """
     Computes causal updates, stability metrics, and structural deltas
-    for the world model state.
+    for the world model state (3D‑MAX Edition).
 
     Input state format (expected):
         {
             "nodes": [...],
             "edges": [...],
-            "attributes": {...}
+            "attributes": {...},
+            "previous": {...}   # optional
         }
 
     Output:
@@ -24,7 +41,11 @@ class WorldModelDynamics:
         • deltas
         • stability score
         • anomaly detection
+        • 3D‑MAX telemetry
     """
+
+    def __init__(self):
+        self._last_3d: Optional[WMDyn3D] = None
 
     # ------------------------------------------------------------
     # MAIN ENTRYPOINT
@@ -48,7 +69,6 @@ class WorldModelDynamics:
             # ----------------------------------------------------
             # CAUSAL HEURISTICS (lightweight)
             # ----------------------------------------------------
-            # More edges → more coupling → lower stability
             stability = max(0.0, 1.0 - (density * 0.1))
 
             # ----------------------------------------------------
@@ -65,12 +85,31 @@ class WorldModelDynamics:
             if node_count == 0:
                 anomalies.append("empty-world")
 
+            latency = int((time.time() - start) * 1000)
+
+            # ----------------------------------------------------
+            # 3D‑MAX TELEMETRY
+            # ----------------------------------------------------
+            self._last_3d = WMDyn3D(
+                axis_x="evaluate",
+                axis_y=[
+                    f"nodes:{node_count}",
+                    f"edges:{edge_count}",
+                    f"density:{density:.3f}",
+                ],
+                axis_z={
+                    "latency_ms": latency,
+                    "stability": stability,
+                    "anomalies": len(anomalies),
+                },
+            )
+
             # ----------------------------------------------------
             # STRUCTURED ENVELOPE
             # ----------------------------------------------------
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "metrics": {
                     "nodes": node_count,
                     "edges": edge_count,
@@ -84,9 +123,17 @@ class WorldModelDynamics:
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = WMDyn3D(
+                axis_x="evaluate",
+                axis_y=["exception"],
+                axis_z={"latency_ms": latency, "error": str(e)},
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "metrics": {},
                 "deltas": {},
                 "anomalies": [],
@@ -111,10 +158,28 @@ class WorldModelDynamics:
         curr_nodes = set(state.get("nodes", []))
         curr_edges = set(state.get("edges", []))
 
+        added_nodes = list(curr_nodes - prev_nodes)
+        removed_nodes = list(prev_nodes - curr_nodes)
+        added_edges = list(curr_edges - prev_edges)
+        removed_edges = list(prev_edges - curr_edges)
+
+        # 3D‑MAX telemetry for delta computation
+        self._last_3d = WMDyn3D(
+            axis_x="_compute_deltas",
+            axis_y=[
+                f"added_nodes:{len(added_nodes)}",
+                f"removed_nodes:{len(removed_nodes)}",
+                f"added_edges:{len(added_edges)}",
+                f"removed_edges:{len(removed_edges)}",
+            ],
+            axis_z={"ok": True},
+        )
+
         return {
-            "added_nodes": list(curr_nodes - prev_nodes),
-            "removed_nodes": list(prev_nodes - curr_nodes),
-            "added_edges": list(curr_edges - prev_edges),
-            "removed_edges": list(prev_edges - curr_edges),
+            "added_nodes": added_nodes,
+            "removed_nodes": removed_nodes,
+            "added_edges": added_edges,
+            "removed_edges": removed_edges,
         }
+
 

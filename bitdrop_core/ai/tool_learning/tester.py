@@ -1,14 +1,30 @@
 # syntheticmind/tools/tool_tester.py
 
 from __future__ import annotations
-from typing import Dict, Any
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
 import time
 import traceback
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class ToolTest3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# TOOL TESTER — MAX VALIDATION + 3D‑MAX
+# ============================================================
+
 class ToolTester:
     """
-    Tests generated tools by executing them and validating structure.
+    Tests generated tools by executing them and validating structure (3D‑MAX Edition).
 
     Validates:
         • code executes safely
@@ -16,9 +32,13 @@ class ToolTester:
         • callable accepts expected parameters
         • return value is a dict with required keys
         • no side effects escape the sandbox
+        • 3D‑MAX telemetry for every phase
     """
 
     REQUIRED_KEYS = {"tool", "params"}
+
+    def __init__(self):
+        self._last_3d: Optional[ToolTest3D] = None
 
     # ------------------------------------------------------------
     # MAIN TEST ENTRYPOINT
@@ -43,7 +63,6 @@ class ToolTester:
             # ----------------------------------------------------
             exec(code, {}, local_env)
 
-            # Extract function
             fns = [v for v in local_env.values() if callable(v)]
             if len(fns) != 1:
                 raise ValueError(f"Expected exactly 1 function, found {len(fns)}")
@@ -71,12 +90,22 @@ class ToolTester:
             if missing:
                 raise ValueError(f"Missing required keys: {missing}")
 
-            # ----------------------------------------------------
-            # SUCCESS
-            # ----------------------------------------------------
+            latency = int((time.time() - start) * 1000)
+
+            # 3D‑MAX telemetry
+            self._last_3d = ToolTest3D(
+                axis_x="test",
+                axis_y=[f"params:{len(param_names)}"],
+                axis_z={
+                    "latency_ms": latency,
+                    "ok": True,
+                    "returned_keys": list(result.keys()),
+                },
+            )
+
             return {
                 "ok": True,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "error": None,
                 "details": {
                     "params": param_names,
@@ -85,9 +114,20 @@ class ToolTester:
             }
 
         except Exception as e:
+            latency = int((time.time() - start) * 1000)
+
+            self._last_3d = ToolTest3D(
+                axis_x="test",
+                axis_y=["exception"],
+                axis_z={
+                    "latency_ms": latency,
+                    "error": str(e),
+                },
+            )
+
             return {
                 "ok": False,
-                "latency_ms": int((time.time() - start) * 1000),
+                "latency_ms": latency,
                 "error": str(e),
                 "traceback": traceback.format_exc(),
                 "details": {},

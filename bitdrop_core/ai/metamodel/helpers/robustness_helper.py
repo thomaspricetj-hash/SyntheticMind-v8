@@ -1,11 +1,27 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Dict, Any
 import re
 
 
+@dataclass
+class Robustness3D:
+    """
+    3D structural view of robustness evaluation.
+
+    axis_x: raw answer text
+    axis_y: line-wise decomposition
+    axis_z: robustness signals + scores
+    """
+    raw_answer: str
+    axis_x: str
+    axis_y: list[str]
+    axis_z: Dict[str, Any]
+
+
 class RobustnessHelperV4:
     """
-    RobustnessHelperV4 — high‑reliability output evaluator.
+    RobustnessHelperV4 — high‑reliability output evaluator (3D-aware).
 
     Responsibilities:
       • Detect contradictions
@@ -16,9 +32,7 @@ class RobustnessHelperV4:
       • Detect overconfident wrongness
       • Detect repetition loops
       • Provide a structured robustness score + flags
-
-    This helper does NOT generate text. It evaluates the model's output
-    and returns a structured robustness profile.
+      • Provide a 3D structural view of robustness signals
     """
 
     # Patterns for detecting nonsense or drift
@@ -50,16 +64,16 @@ class RobustnessHelperV4:
 
     def analyze(self, query: str, answer: str) -> Dict[str, Any]:
         """
-        Returns a structured robustness profile.
+        Returns a structured robustness profile + 3D structure.
         """
 
-        t = answer.lower()
+        t = (answer or "").lower()
 
         # --- 1. Nonsense / drift detection ---
         nonsense = bool(self.NONSENSE_RE.search(t))
 
         # --- 2. Repetition loop detection ---
-        repetition = bool(self.REPETITION_RE.search(answer))
+        repetition = bool(self.REPETITION_RE.search(answer or ""))
 
         # --- 3. Overconfidence detection ---
         overconfident = bool(self.OVERCONFIDENT_RE.search(t))
@@ -68,10 +82,10 @@ class RobustnessHelperV4:
         contradiction = bool(self.CONTRADICTION_RE.search(t))
 
         # --- 5. Adversarial detection ---
-        adversarial = bool(self.ADVERSARIAL_RE.search(query.lower()))
+        adversarial = bool(self.ADVERSARIAL_RE.search((query or "").lower()))
 
         # --- 6. Incomplete answer detection ---
-        incomplete = self._detect_incomplete(answer)
+        incomplete = self._detect_incomplete(answer or "")
 
         # --- 7. Logical consistency score ---
         logic_score = self._logic_score(
@@ -81,8 +95,10 @@ class RobustnessHelperV4:
             incomplete=incomplete,
         )
 
+        robust = logic_score >= 0.75
+
         # --- 8. Build robustness profile ---
-        return {
+        profile = {
             "nonsense": nonsense,
             "repetition": repetition,
             "overconfident": overconfident,
@@ -90,8 +106,14 @@ class RobustnessHelperV4:
             "adversarial_prompt": adversarial,
             "incomplete": incomplete,
             "logic_score": logic_score,
-            "robust": logic_score >= 0.75,
+            "robust": robust,
         }
+
+        # --- 9. 3D structural view ---
+        structure_3d = self._build_3d(answer or "", profile)
+
+        profile["structure_3d"] = structure_3d
+        return profile
 
     # ------------------------------------------------------------
     # Incomplete answer detection
@@ -104,12 +126,14 @@ class RobustnessHelperV4:
         if not answer:
             return True
 
+        stripped = answer.strip()
+
         # Ends mid‑sentence
-        if answer.strip().endswith(("and", "or", "but", ",")):
+        if stripped.endswith(("and", "or", "but", ",")):
             return True
 
         # Very short answers to complex questions
-        if len(answer.split()) < 5:
+        if len(stripped.split()) < 5:
             return True
 
         return False
@@ -141,3 +165,18 @@ class RobustnessHelperV4:
             score -= 0.2
 
         return max(0.0, min(1.0, score))
+
+    # ------------------------------------------------------------
+    # 3D builder
+    # ------------------------------------------------------------
+    def _build_3d(self, answer: str, profile: Dict[str, Any]) -> Robustness3D:
+        lines = (answer or "").splitlines()
+        axis_z = dict(profile)
+        axis_z.pop("structure_3d", None)
+        return Robustness3D(
+            raw_answer=answer or "",
+            axis_x=answer or "",
+            axis_y=lines,
+            axis_z=axis_z,
+        )
+

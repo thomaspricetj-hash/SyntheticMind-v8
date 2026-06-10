@@ -1,10 +1,68 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
 from .symbolic import Expr, Symbol, Number, Add, Mul, Pow
 from .solver import solve_quadratic
+
+
+# ============================================================
+# 3D STRUCTURE
+# ============================================================
+
+@dataclass
+class CAS3D:
+    """
+    3D structural view of a CAS operation.
+
+    axis_x: raw expression string
+    axis_y: expression tree node types
+    axis_z: metadata (op, before/after, coefficients, roots, etc.)
+    """
+    raw_expr: str
+    axis_x: str
+    axis_y: List[str]
+    axis_z: Dict[str, Any]
+
+
+_last_3d: Optional[CAS3D] = None
+
+
+# ============================================================
+# INTERNAL 3D BUILDER
+# ============================================================
+
+def _build_3d(before: Expr | str, after: Any, op: str, extra: Dict[str, Any] | None = None) -> CAS3D:
+    def walk(e: Expr, out: List[str]):
+        out.append(type(e).__name__)
+        if isinstance(e, (Add, Mul)):
+            walk(e.left, out)
+            walk(e.right, out)
+        elif isinstance(e, Pow):
+            walk(e.base, out)
+            walk(e.exp, out)
+        elif isinstance(e, Neg):
+            walk(e.expr, out)
+
+    structure: List[str] = []
+    if isinstance(before, Expr):
+        walk(before, structure)
+
+    axis_z = {
+        "op": op,
+        "before": str(before),
+        "after": str(after),
+        "node_count": len(structure),
+    }
+    if extra:
+        axis_z.update(extra)
+
+    return CAS3D(
+        raw_expr=str(before),
+        axis_x=str(before),
+        axis_y=structure,
+        axis_z=axis_z,
+    )
 
 
 # ============================================================
@@ -66,7 +124,10 @@ def _integrate(expr: Expr, var: Symbol) -> Optional[Expr]:
 
 
 def integrate(expr: Expr, var: Symbol) -> Optional[Expr]:
-    return _integrate(expr, var)
+    global _last_3d
+    out = _integrate(expr, var)
+    _last_3d = _build_3d(expr, out, "integrate", extra={"var": var.name})
+    return out
 
 
 # ============================================================
@@ -80,13 +141,39 @@ class LimitResult:
 
 
 def limit(expr_str: str, var_name: str, point: float) -> LimitResult:
+    global _last_3d
+
     s = expr_str.replace(" ", "").lower()
 
     # classic special case
     if s == "sin(x)/x" and var_name == "x" and abs(point) < 1e-12:
-        return LimitResult(1.0, "lim x→0 sin(x)/x = 1")
+        res = LimitResult(1.0, "lim x→0 sin(x)/x = 1")
+        _last_3d = CAS3D(
+            raw_expr=expr_str,
+            axis_x=expr_str,
+            axis_y=["Limit"],
+            axis_z={
+                "op": "limit",
+                "point": point,
+                "var": var_name,
+                "result": res.description,
+            },
+        )
+        return res
 
-    return LimitResult(None, "limit not implemented")
+    res = LimitResult(None, "limit not implemented")
+    _last_3d = CAS3D(
+        raw_expr=expr_str,
+        axis_x=expr_str,
+        axis_y=["Limit"],
+        axis_z={
+            "op": "limit",
+            "point": point,
+            "var": var_name,
+            "result": res.description,
+        },
+    )
+    return res
 
 
 # ============================================================
@@ -94,6 +181,8 @@ def limit(expr_str: str, var_name: str, point: float) -> LimitResult:
 # ============================================================
 
 def factor_quadratic(expr: Expr, var: Symbol) -> Optional[Expr]:
+    global _last_3d
+
     # flatten Add tree
     terms = []
 
@@ -146,21 +235,29 @@ def factor_quadratic(expr: Expr, var: Symbol) -> Optional[Expr]:
 
     for t in terms:
         if not collect(t):
+            _last_3d = _build_3d(expr, None, "factor_quadratic_fail")
             return None
 
     # solve roots
     from .symbolic import Eq
     eq = Eq(expr, Number(0.0))
     roots = solve_quadratic(eq, var)
+
     if not roots:
+        _last_3d = _build_3d(expr, None, "factor_quadratic_no_roots")
         return None
 
     from .symbolic import Add as SAdd, Mul as SMul, Number as SNumber
 
     if len(roots) == 1:
         r = roots[0]
-        return SMul(SNumber(a), SAdd(var, SNumber(-r)))
+        out = SMul(SNumber(a), SAdd(var, SNumber(-r)))
+        _last_3d = _build_3d(expr, out, "factor_quadratic_single", extra={"roots": roots})
+        return out
 
     r1, r2 = roots
-    return SMul(SNumber(a), SMul(SAdd(var, SNumber(-r1)), SAdd(var, SNumber(-r2))))
+    out = SMul(SNumber(a), SMul(SAdd(var, SNumber(-r1)), SAdd(var, SNumber(-r2))))
+    _last_3d = _build_3d(expr, out, "factor_quadratic_two", extra={"roots": roots})
+    return out
+
 

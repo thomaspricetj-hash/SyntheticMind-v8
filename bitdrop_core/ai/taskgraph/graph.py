@@ -1,6 +1,7 @@
 # syntheticmind/taskgraph/task_graph.py
 
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
 import time
 import traceback
@@ -8,15 +9,31 @@ import traceback
 from .node import TaskNode
 
 
+# ============================================================
+# 3D‑MAX STRUCTURE
+# ============================================================
+
+@dataclass
+class TaskGraph3D:
+    axis_x: str
+    axis_y: list
+    axis_z: dict
+
+
+# ============================================================
+# TASK GRAPH — MAX STRUCT + 3D‑MAX
+# ============================================================
+
 class TaskGraph:
     """
-    Directed acyclic graph of tasks.
+    Directed acyclic graph of tasks (3D‑MAX Edition).
     Provides:
         • structured graph metadata
         • cycle detection
         • safe node linking
         • ready-node resolution
         • graph introspection
+        • 3D‑MAX telemetry
         • future-proof hooks for branching + parallelism
     """
 
@@ -26,6 +43,7 @@ class TaskGraph:
         self.entry_nodes: List[str] = []
         self.exit_nodes: List[str] = []
         self.created_at = time.time()
+        self._last_3d: Optional[TaskGraph3D] = None
 
     # ------------------------------------------------------------
     # ADD NODE
@@ -38,6 +56,16 @@ class TaskGraph:
 
         if is_exit:
             self.exit_nodes.append(node.id)
+
+        self._last_3d = TaskGraph3D(
+            axis_x="add_node",
+            axis_y=[f"node:{node.id}", f"type:{node.type}"],
+            axis_z={
+                "is_entry": is_entry,
+                "is_exit": is_exit,
+                "node_count": len(self.nodes),
+            },
+        )
 
     # ------------------------------------------------------------
     # LINK NODES
@@ -54,6 +82,12 @@ class TaskGraph:
         parent.add_child(child_id)
         child.add_parent(parent_id)
 
+        self._last_3d = TaskGraph3D(
+            axis_x="link",
+            axis_y=[f"{parent_id}->{child_id}"],
+            axis_z={"node_count": len(self.nodes)},
+        )
+
     # ------------------------------------------------------------
     # READY NODES
     # ------------------------------------------------------------
@@ -61,19 +95,33 @@ class TaskGraph:
         """
         Nodes whose parents are all done and which are still pending.
         """
-
-        ready = []
+        ready: List[TaskNode] = []
         for node in self.nodes.values():
             if node.status == "pending":
                 if all(self.nodes[p].status == "done" for p in node.parents):
                     ready.append(node)
+
+        self._last_3d = TaskGraph3D(
+            axis_x="get_ready_nodes",
+            axis_y=[f"ready:{len(ready)}"],
+            axis_z={"node_count": len(self.nodes)},
+        )
+
         return ready
 
     # ------------------------------------------------------------
     # COMPLETION CHECK
     # ------------------------------------------------------------
     def is_complete(self) -> bool:
-        return all(n.status in ("done", "error") for n in self.nodes.values())
+        complete = all(n.status in ("done", "error") for n in self.nodes.values())
+
+        self._last_3d = TaskGraph3D(
+            axis_x="is_complete",
+            axis_y=[f"complete:{complete}"],
+            axis_z={"node_count": len(self.nodes)},
+        )
+
+        return complete
 
     # ------------------------------------------------------------
     # CYCLE DETECTION (safety)
@@ -82,7 +130,6 @@ class TaskGraph:
         """
         Detect cycles using DFS.
         """
-
         visited = set()
         stack = set()
 
@@ -102,7 +149,15 @@ class TaskGraph:
             stack.remove(nid)
             return False
 
-        return any(dfs(nid) for nid in self.nodes)
+        has_cycle = any(dfs(nid) for nid in self.nodes)
+
+        self._last_3d = TaskGraph3D(
+            axis_x="has_cycle",
+            axis_y=[f"cycle:{has_cycle}"],
+            axis_z={"node_count": len(self.nodes)},
+        )
+
+        return has_cycle
 
     # ------------------------------------------------------------
     # GRAPH SNAPSHOT
@@ -111,9 +166,8 @@ class TaskGraph:
         """
         Structured snapshot of the graph.
         """
-
         try:
-            return {
+            snap = {
                 "ok": True,
                 "goal": self.goal,
                 "created_at": self.created_at,
@@ -136,7 +190,20 @@ class TaskGraph:
                 "error": None,
             }
 
+            self._last_3d = TaskGraph3D(
+                axis_x="snapshot",
+                axis_y=[f"nodes:{len(self.nodes)}"],
+                axis_z={"has_cycle": snap["has_cycle"]},
+            )
+
+            return snap
+
         except Exception as e:
+            self._last_3d = TaskGraph3D(
+                axis_x="snapshot",
+                axis_y=["exception"],
+                axis_z={"error": str(e)},
+            )
             return {
                 "ok": False,
                 "goal": self.goal,

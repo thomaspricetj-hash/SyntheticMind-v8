@@ -1,7 +1,5 @@
-# syntheticmind/helpers/helper_mesh.py
-
 from __future__ import annotations
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Callable, Optional, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 import time
 import zlib
@@ -14,6 +12,7 @@ from collections import OrderedDict
 # ------------------------------------------------------------
 class MicroStringStripper:
     __slots__ = ()
+
     @staticmethod
     def clean(text: str) -> str:
         return " ".join(text.split())
@@ -21,6 +20,7 @@ class MicroStringStripper:
 
 class MicroFastHash:
     __slots__ = ()
+
     @staticmethod
     def h(text: str) -> int:
         return zlib.crc32(text.encode("utf-8"))
@@ -28,6 +28,7 @@ class MicroFastHash:
 
 class MicroLatency:
     __slots__ = ()
+
     @staticmethod
     def wrap(start: float) -> int:
         return int((time.time() - start) * 1000)
@@ -35,6 +36,7 @@ class MicroLatency:
 
 class MicroWorkerSelector:
     __slots__ = ()
+
     @staticmethod
     def workers(n: int) -> int:
         # Cap threads to avoid oversubscription
@@ -43,11 +45,13 @@ class MicroWorkerSelector:
 
 class MicroSafeResult:
     __slots__ = ()
+
     @staticmethod
     def normalize(result: Any, latency_ms: int) -> Dict[str, Any]:
         if isinstance(result, dict):
-            result["latency_ms"] = latency_ms
-            return result
+            env = dict(result)
+            env["latency_ms"] = latency_ms
+            return env
         return {
             "error": "invalid helper output",
             "detected": False,
@@ -163,21 +167,25 @@ class HelperConfig:
 
 
 # ------------------------------------------------------------
-# MAIN PARALLEL HELPER MESH V3
+# MAIN PARALLEL HELPER MESH V3 (1D)
 # ------------------------------------------------------------
 class HelperMesh:
     """
-    HelperMesh v3 (max upgrade):
+    HelperMesh v3:
         • parallel execution
         • per-helper timeouts
         • per-helper circuit breakers
         • priority scheduling
-        • micro-optimized
         • helper-level LRU caching
         • fail-soft, deterministic merge
+        • routing helpers for NeuralPredictor
     """
 
-    def __init__(self, helpers: Dict[str, Callable], configs: Optional[Dict[str, HelperConfig]] = None):
+    def __init__(
+        self,
+        helpers: Dict[str, Callable],
+        configs: Optional[Dict[str, HelperConfig]] = None,
+    ):
         """
         helpers: name -> helper_instance (must expose process(query, lang_info, memory_info))
         configs: optional name -> HelperConfig
@@ -201,20 +209,25 @@ class HelperMesh:
             self.configs[name] = cfg
         return cfg
 
+    # --------------------------------------------------------
+    # Core parallel execution (1D query)
+    # --------------------------------------------------------
     def run(
         self,
         query: str,
         lang_info: Dict[str, Any],
         memory_info: Dict[str, Any],
     ) -> Dict[str, Any]:
-
         query = MicroStringStripper.clean(query or "")
         q_hash = MicroFastHash.h(query)
 
         results: Dict[str, Any] = {}
 
         # Priority scheduling
-        ordered = sorted(self.helpers.items(), key=lambda kv: self._get_config(kv[0]).priority)
+        ordered = sorted(
+            self.helpers.items(),
+            key=lambda kv: self._get_config(kv[0]).priority,
+        )
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             future_map: Dict[Future, str] = {}
@@ -280,4 +293,225 @@ class HelperMesh:
                     cache.set(q_hash, error_env)
 
         return results
+
+    # --------------------------------------------------------
+    # Deterministic merge for routing / features
+    # --------------------------------------------------------
+    def run_and_merge(
+        self,
+        query: str,
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Run all helpers and merge their envelopes into a single
+        feature dict suitable for routing / NeuralPredictor.
+        """
+        envelopes = self.run(query, lang_info, memory_info)
+        merged: Dict[str, Any] = {}
+
+        # Deterministic merge: first non-None value wins per key
+        for env in envelopes.values():
+            if not isinstance(env, dict):
+                continue
+            for k, v in env.items():
+                if k in (
+                    "latency_ms",
+                    "error",
+                    "detected",
+                    "skipped",
+                    "reason",
+                    "timeout_ms",
+                ):
+                    continue
+                if v is None:
+                    continue
+                if k not in merged:
+                    merged[k] = v
+
+        return merged
+
+    # --------------------------------------------------------
+    # Routing helpers for NeuralPredictor
+    # --------------------------------------------------------
+    def get_backend_hint(
+        self,
+        query: str,
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> Optional[str]:
+        merged = self.run_and_merge(query, lang_info, memory_info)
+        hint = merged.get("backend_hint")
+        if hint in ("R", "L", "Z"):
+            return hint
+        return None
+
+    def get_shape_hint(
+        self,
+        query: str,
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> Optional[str]:
+        merged = self.run_and_merge(query, lang_info, memory_info)
+        shape = merged.get("shape") or merged.get("shape_hint")
+        if isinstance(shape, str):
+            return shape
+        return None
+
+    def get_semantic_kind(
+        self,
+        query: str,
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> Optional[str]:
+        merged = self.run_and_merge(query, lang_info, memory_info)
+        kind = merged.get("semantic_kind")
+        if isinstance(kind, str):
+            return kind
+        return None
+
+
+# ------------------------------------------------------------
+# 3D HELPER MESH (MAXED, BUT BACKWARD-COMPATIBLE)
+# ------------------------------------------------------------
+class HelperMesh3D:
+    """
+    3D HelperMesh:
+        • Reuses HelperMesh core logic
+        • Adds 3D batching: (depth, row, col) grid of queries
+        • Per-cell parallelism + per-helper parallelism
+        • Deterministic 3D merge for routing / features
+    """
+
+    def __init__(
+        self,
+        helpers: Dict[str, Callable],
+        configs: Optional[Dict[str, HelperConfig]] = None,
+    ):
+        # One shared mesh; we treat 3D as a batch over the same helper set
+        self.mesh = HelperMesh(helpers=helpers, configs=configs)
+
+    # queries_3d: List[ List[ List[str] ] ]  -> [D][H][W]
+    def run_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[Dict[str, Any]]]]:
+        """
+        Run helpers over a 3D grid of queries:
+            queries_3d[d][h][w] = query string
+
+        Returns:
+            results_3d[d][h][w] = { helper_name -> envelope }
+        """
+        depth = len(queries_3d)
+        results_3d: List[List[List[Dict[str, Any]]]] = []
+
+        # Outer dimension: depth
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Dict[str, Any]]] = []
+
+            for row in plane:
+                row_out: List[Dict[str, Any]] = []
+                for q in row:
+                    envs = self.mesh.run(q, lang_info, memory_info)
+                    row_out.append(envs)
+                plane_out.append(row_out)
+
+            results_3d.append(plane_out)
+
+        return results_3d
+
+    def run_and_merge_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[Dict[str, Any]]]]:
+        """
+        Same as run_3d, but merges helper envelopes per cell into a single feature dict.
+        """
+        depth = len(queries_3d)
+        results_3d: List[List[List[Dict[str, Any]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Dict[str, Any]]] = []
+
+            for row in plane:
+                row_out: List[Dict[str, Any]] = []
+                for q in row:
+                    merged = self.mesh.run_and_merge(q, lang_info, memory_info)
+                    row_out.append(merged)
+                plane_out.append(row_out)
+
+            results_3d.append(plane_out)
+
+        return results_3d
+
+    def get_backend_hint_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[Optional[str]]]]:
+        depth = len(queries_3d)
+        out: List[List[List[Optional[str]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Optional[str]]] = []
+            for row in plane:
+                row_out: List[Optional[str]] = []
+                for q in row:
+                    row_out.append(self.mesh.get_backend_hint(q, lang_info, memory_info))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    def get_shape_hint_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[Optional[str]]]]:
+        depth = len(queries_3d)
+        out: List[List[List[Optional[str]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Optional[str]]] = []
+            for row in plane:
+                row_out: List[Optional[str]] = []
+                for q in row:
+                    row_out.append(self.mesh.get_shape_hint(q, lang_info, memory_info))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
+    def get_semantic_kind_3d(
+        self,
+        queries_3d: List[List[List[str]]],
+        lang_info: Dict[str, Any],
+        memory_info: Dict[str, Any],
+    ) -> List[List[List[Optional[str]]]]:
+        depth = len(queries_3d)
+        out: List[List[List[Optional[str]]]] = []
+
+        for d in range(depth):
+            plane = queries_3d[d]
+            plane_out: List[List[Optional[str]]] = []
+            for row in plane:
+                row_out = []
+                for q in row:
+                    row_out.append(self.mesh.get_semantic_kind(q, lang_info, memory_info))
+                plane_out.append(row_out)
+            out.append(plane_out)
+
+        return out
+
 
